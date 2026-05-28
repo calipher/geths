@@ -1,0 +1,149 @@
+{
+  "entities": {
+    "Sermon": {
+      "title": "Sermon",
+      "description": "A sermon message",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Sermon title" },
+        "date": { "type": "string", "description": "Sermon date" },
+        "speaker": { "type": "string", "description": "Sermon speaker" },
+        "duration": { "type": "string", "description": "Sermon duration" }
+      },
+      "required": ["title", "date", "speaker", "duration"]
+    },
+    "UpcomingEvent": {
+      "title": "Upcoming Event",
+      "description": "An upcoming event",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Event title" },
+        "date": { "type": "string", "description": "Event date" },
+        "time": { "type": "string", "description": "Event time" },
+        "location": { "type": "string", "description": "Event location" },
+        "type": { "type": "string", "description": "Event type" }
+      },
+      "required": ["title", "date", "time", "location", "type"]
+    },
+    "TimetableEntry": {
+      "title": "Timetable Entry",
+      "description": "A weekly schedule entry",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Program name" },
+        "day": { "type": "string", "description": "Program day" },
+        "time": { "type": "string", "description": "Program time" },
+        "location": { "type": "string", "description": "Program location" }
+      },
+      "required": ["title", "day", "time", "location"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "A church announcement",
+      "type": "object",
+      "properties": {
+        "title": { "type": "string", "description": "Announcement title" },
+        "message": { "type": "string", "description": "Announcement message" },
+        "date": { "type": "string", "description": "Announcement date" }
+      },
+      "required": ["title", "message", "date"]
+    },
+    "Testimony": {
+      "title": "Testimony",
+      "description": "A testimony from a member",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Member name" },
+        "message": { "type": "string", "description": "Testimony message" },
+        "date": { "type": "string", "description": "Testimony date" }
+      },
+      "required": ["name", "message", "date"]
+    },
+    "PrayerRequest": {
+      "title": "Prayer Request",
+      "description": "A prayer request submitted",
+      "type": "object",
+      "properties": {
+        "message": { "type": "string", "description": "Request message" },
+        "date": { "type": "string", "description": "Request date" },
+        "prayersCount": { "type": "number", "description": "Count of prayers" },
+        "name": { "type": "string", "description": "Name of requester (optional)" }
+      },
+      "required": ["message", "date", "prayersCount"]
+    },
+    "GalleryImage": {
+      "title": "Gallery Image",
+      "description": "An image for the gallery",
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "description": "Image URL" },
+        "title": { "type": "string", "description": "Image title" },
+        "category": { "type": "string", "description": "Image category" }
+      },
+      "required": ["url", "title", "category"]
+    },
+    "CellGroup": {
+      "title": "Cell Group",
+      "description": "A cell group",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Group name" },
+        "leader": { "type": "string", "description": "Group leader" },
+        "address": { "type": "string", "description": "Group address" },
+        "day": { "type": "string", "description": "Group day" },
+        "time": { "type": "string", "description": "Group time" },
+        "contact": { "type": "string", "description": "Group contact" }
+      },
+      "required": ["name", "leader", "address", "day", "time", "contact"]
+    },
+    "AppSettings": {
+      "title": "App Settings",
+      "description": "Global application settings and configuration",
+      "type": "object",
+      "properties": {
+        "latestVersion": { "type": "string", "description": "Latest application version" },
+        "apkDownloadUrl": { "type": "string", "description": "URL to download the APK" },
+        "releaseNotes": { "type": "string", "description": "Release notes for the latest version" }
+      },
+      "required": ["latestVersion", "apkDownloadUrl"]
+    }
+  },
+  "firestore": {
+    "sermons": {
+      "schema": "Sermon",
+      "description": "Collection of all sermons"
+    },
+    "upcomingEvents": {
+      "schema": "UpcomingEvent",
+      "description": "Collection of all upcoming events"
+    },
+    "timetable": {
+      "schema": "TimetableEntry",
+      "description": "Collection of all timetable entries"
+    },
+    "announcements": {
+      "schema": "Announcement",
+      "description": "Collection of all announcements"
+    },
+    "testimonies": {
+      "schema": "Testimony",
+      "description": "Collection of all testimonies"
+    },
+    "prayerRequests": {
+      "schema": "PrayerRequest",
+      "description": "Collection of all prayer requests"
+    },
+    "galleryImages": {
+      "schema": "GalleryImage",
+      "description": "Collection of all gallery images"
+    },
+    "cellGroups": {
+      "schema": "CellGroup",
+      "description": "Collection of all cell groups"
+    },
+    "appSettings": {
+      "schema": "AppSettings",
+      "description": "Collection containing application settings"
+    }
+  }
+}

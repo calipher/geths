@@ -1,5 +1,6 @@
-import { Bell, Home, Headphones, Calendar, Users, Info, Settings, ShieldCheck, Camera } from "lucide-react";
+import { Bell, Home, Headphones, Calendar, Users, Info, Settings, ShieldCheck, Camera, Loader2 } from "lucide-react";
 import { TabContext } from "./types";
+import React, { useState, useRef } from "react";
 
 interface HeaderProps {
   setActiveTab: (tab: TabContext) => void;
@@ -67,5 +68,87 @@ export function BottomNav({ activeTab, setActiveTab }: NavProps) {
         )
       })}
     </nav>
+  );
+}
+
+export function PullToRefresh({ children, onRefresh }: { children: React.ReactNode, onRefresh: () => Promise<void> }) {
+  const [pulling, setPulling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const startY = useRef(0);
+  const currentY = useRef(0);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (scrollRef.current && scrollRef.current.scrollTop <= 0) {
+      startY.current = e.touches[0].clientY;
+      setPulling(true);
+    }
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!pulling || refreshing) return;
+    currentY.current = e.touches[0].clientY;
+    const distance = currentY.current - startY.current;
+    
+    // Only handle pull down from top
+    if (distance > 0 && scrollRef.current && scrollRef.current.scrollTop <= 0) {
+      const scaledDistance = Math.min(distance * 0.4, 80); // max 80px visual pull
+      setPullDistance(scaledDistance);
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (!pulling) return;
+    setPulling(false);
+
+    if (pullDistance > 60 && !refreshing) {
+      setRefreshing(true);
+      setPullDistance(60); // Hold at refreshing height
+      try {
+        await onRefresh();
+      } finally {
+        setRefreshing(false);
+        setPullDistance(0);
+      }
+    } else {
+      setPullDistance(0);
+    }
+  };
+
+  return (
+    <div 
+      className="flex-1 overflow-y-auto no-scrollbar relative flex flex-col"
+      ref={scrollRef}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      <div 
+        className="absolute top-0 w-full flex justify-center items-center overflow-hidden transition-all duration-300 pointer-events-none"
+        style={{ 
+          height: pulling || refreshing ? `${pullDistance}px` : '0px',
+          opacity: pullDistance > 10 ? 1 : 0
+        }}
+      >
+        <div className="bg-white rounded-full p-2 shadow-sm border border-gray-100 flex items-center justify-center translate-y-2">
+          <Loader2 
+            className={`w-5 h-5 text-blue-500 ${refreshing ? 'animate-spin' : ''}`} 
+            style={{ transform: !refreshing ? `rotate(${pullDistance * 4}deg)` : undefined }} 
+          />
+        </div>
+      </div>
+      <div 
+        className="flex-1 flex flex-col"
+        style={{ 
+          transform: `translateY(${pullDistance}px)`,
+          transition: !pulling ? 'transform 0.3s ease-out' : 'none'
+        }}
+      >
+        {children}
+      </div>
+    </div>
   );
 }

@@ -56,3 +56,15 @@ export const galleryImages = [
   { id: 5, url: 'https://plus.unsplash.com/premium_photo-1661730070267-33eb968a5c4e?w=800&auto=format&fit=crop&q=60', title: 'Men\'s Fellowship', category: 'Fellowship' },
   { id: 6, url: 'https://images.unsplash.com/photo-1529070538774-1843cb3265df?w=800&auto=format&fit=crop&q=60', title: 'Annual Conference Meetings', category: 'Events' }
 ];
+
+export const cellGroups = [
+  { id: 1, name: 'North District Cell', area: 'Sauerstown, Queens Park, Kingsdale', leader: 'Deacon Moyo', phone: '+263 77 123 4567' },
+  { id: 2, name: 'South District Cell', area: 'Nkulumane, Nketa, Tshabalala', leader: 'Elder Sibanda', phone: '+263 77 987 6543' },
+  { id: 3, name: 'East District Cell', area: 'Mahatshula, Parklands, Kumalo', leader: 'Sister Ndlovu', phone: '+263 71 234 5678' },
+  { id: 4, name: 'West District Cell', area: 'Luveve, Magwegwe, Pumula', leader: 'Brother Dube', phone: '+263 73 345 6789' },
+];
+
+export const appSettings = [
+  { id: 'config', latestVersion: '1.0.0', apkDownloadUrl: '', releaseNotes: 'Initial release' }
+];
+

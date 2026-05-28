@@ -1,6 +1,7 @@
-import { useState, useEffect } from "react";
-import { Clock, MapPin, PlayCircle, Calendar as CalendarIcon, Phone, Mail, Heart, BellRing, X, BookOpen, ChevronRight, ChevronLeft, Smile, Flame, Megaphone, User, Quote, Share2, Users, Edit3, Settings, Lock, Image as ImageIcon } from "lucide-react";
-import { sermons, timetable, announcements, testimonies, upcomingEvents, prayerRequests, galleryImages } from "./data";
+import React, { useState, useEffect, useRef } from "react";
+import ReactPlayer from 'react-player';
+import { Clock, MapPin, PlayCircle, PauseCircle, Calendar as CalendarIcon, Phone, Mail, Heart, BellRing, X, BookOpen, ChevronRight, ChevronLeft, Smile, Flame, Megaphone, User, Quote, Share2, Users, Edit3, Settings, Lock, Image as ImageIcon, SkipBack, SkipForward, Play, Pause } from "lucide-react";
+import { useAppData } from "./context";
 import { TabContext } from "./types";
 
 function SundayTracker() {
@@ -69,6 +70,8 @@ function SundayTracker() {
 }
 
 function TestimoniesSection() {
+  const { data } = useAppData();
+  const { testimonies } = data;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState("");
   const [testimony, setTestimony] = useState("");
@@ -300,6 +303,11 @@ function DailyDevotion() {
 }
 
 export function HomeView() {
+  const { data } = useAppData();
+  const { announcements } = data;
+  const [showAllAnnouncements, setShowAllAnnouncements] = useState(false);
+  const displayedAnnouncements = showAllAnnouncements ? announcements : announcements.slice(0, 3);
+
   return (
     <div className="flex flex-col gap-5 p-5 antialiased">
       <div className="bg-blue-800 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden">
@@ -333,7 +341,7 @@ export function HomeView() {
           <h3 className="font-bold text-lg text-gray-900 leading-none">Announcements</h3>
         </div>
         <div className="flex flex-col gap-3">
-          {announcements.map((announcement) => (
+          {displayedAnnouncements.map((announcement) => (
             <div key={announcement.id} className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex gap-4 shadow-sm">
               <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center shrink-0">
                 <Megaphone className="w-5 h-5" />
@@ -345,6 +353,14 @@ export function HomeView() {
               </div>
             </div>
           ))}
+          {announcements.length > 3 && (
+            <button
+              onClick={() => setShowAllAnnouncements(!showAllAnnouncements)}
+              className="mt-1 w-full bg-indigo-100 text-indigo-700 font-bold py-2.5 rounded-xl shadow-sm hover:bg-indigo-200 transition-colors text-sm"
+            >
+              {showAllAnnouncements ? 'Show Less' : 'See More Announcements'}
+            </button>
+          )}
         </div>
       </div>
 
@@ -391,18 +407,142 @@ export function HomeView() {
 }
 
 export function SermonsView() {
+  const { data } = useAppData();
+  const { sermons } = data;
+  const [activeSermon, setActiveSermon] = useState<any | null>(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const playerRef = useRef<ReactPlayer | null>(null);
+
+  const getCleanUrl = (url: string) => {
+    if (!url) return '';
+    let clean = url.trim();
+    if (clean.match(/youtube\.com|youtu\.be|soundcloud\.com/i) && !clean.match(/^https?:\/\//i)) {
+      clean = 'https://' + clean;
+    }
+    return clean;
+  };
+
+  const cleanAudioUrl = activeSermon?.audioUrl ? getCleanUrl(activeSermon.audioUrl) : '';
+  const isYoutube = cleanAudioUrl.match(/youtube\.com|youtu\.be/i);
+  const isSoundcloud = cleanAudioUrl.match(/soundcloud\.com/i);
+  const isAudioFile = cleanAudioUrl && !isYoutube && !isSoundcloud;
+  const isVideoOrEmbed = isYoutube ? 'aspect-video bg-black shadow-lg relative' : isSoundcloud ? 'h-[166px] shadow-md relative' : isAudioFile ? 'h-0 opacity-0 pointer-events-none' : 'w-0 h-0 absolute opacity-0 pointer-events-none';
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (!cleanAudioUrl && isPlaying && activeSermon) {
+      interval = setInterval(() => {
+        setProgress(prev => {
+           if (prev >= 100) {
+              setIsPlaying(false);
+              return 0;
+           }
+           return prev + 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isPlaying, activeSermon, cleanAudioUrl]);
+
+  const handlePlay = (sermon: any) => {
+    if (activeSermon?.id === sermon.id) {
+       setIsPlaying(!isPlaying);
+    } else {
+       // Stop current player first
+       setIsPlaying(false);
+       setActiveSermon(null);
+       setProgress(0);
+       setIsReady(false);
+       
+       // Mount new one in next tick
+       setTimeout(() => {
+          setActiveSermon(sermon);
+          setIsPlaying(true);
+       }, 50);
+    }
+  };
+
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+    if (isAudioFile && audioRef.current) {
+        if (isPlaying) {
+           const playPromise = audioRef.current.play();
+           if (playPromise !== undefined) {
+             playPromise.catch(error => {
+                console.log("Audio play error:", error);
+                // Autoplay may be blocked, pause state
+                setIsPlaying(false);
+             });
+           }
+        } else {
+           audioRef.current.pause();
+        }
+    }
+  }, [isPlaying, isAudioFile, cleanAudioUrl]);
+
   return (
-    <div className="p-5">
-      <h2 className="font-extrabold text-3xl text-gray-900 mb-5 px-1 tracking-tight">Messages</h2>
+    <div className={`p-5 ${activeSermon ? 'pb-32' : ''}`}>
+      {cleanAudioUrl && (
+        <div className={`w-full mb-6 rounded-2xl overflow-hidden transition-all duration-300 ${isVideoOrEmbed}`}>
+           {(isYoutube || isSoundcloud) && (
+              <ReactPlayer
+                 key={cleanAudioUrl}
+                 ref={playerRef}
+                 url={cleanAudioUrl}
+                 playing={isPlaying}
+                 width="100%"
+                 height="100%"
+                 controls={true}
+                 onReady={() => setIsReady(true)}
+                 onPlay={() => setIsPlaying(true)}
+                 onPause={() => setIsPlaying(false)}
+                 onProgress={({ played }) => setProgress(played * 100)}
+                 onEnded={() => setIsPlaying(false)}
+                 onError={(e) => {
+                    console.log("Player error", e);
+                 }}
+                 config={{
+                    youtube: {
+                       playerVars: { origin: window.location.origin }
+                    }
+                 }}
+              />
+           )}
+           {isAudioFile && (
+              <audio 
+                ref={audioRef}
+                src={cleanAudioUrl} 
+                onTimeUpdate={(e) => {
+                   const curr = e.currentTarget.currentTime;
+                   const dur = e.currentTarget.duration;
+                   if (dur) setProgress((curr / dur) * 100);
+                }}
+                onEnded={() => setIsPlaying(false)}
+                onPlay={() => setIsPlaying(true)}
+                onPause={() => setIsPlaying(false)}
+                onError={(e) => console.log("Native Audio Error", e)}
+                style={{ display: 'none' }}
+              />
+           )}
+        </div>
+      )}
+      <h2 className="font-extrabold text-3xl text-gray-900 mb-5 px-1 tracking-tight">Sermons</h2>
       <div className="flex flex-col gap-3.5">
-        {sermons.map((sermon) => (
-          <div key={sermon.id} className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm flex gap-4 items-center active:scale-95 transition-transform cursor-pointer hover:shadow-md">
-            <div className="w-14 h-14 bg-blue-50 rounded-full flex items-center justify-center flex-shrink-0 text-blue-800">
-              <PlayCircle className="w-8 h-8 fill-blue-100" />
+        {sermons.map((sermon: any) => (
+          <div key={sermon.id} onClick={() => handlePlay(sermon)} className={`p-4 rounded-3xl border shadow-sm flex gap-4 items-center active:scale-95 transition-all cursor-pointer hover:shadow-md ${activeSermon?.id === sermon.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${activeSermon?.id === sermon.id ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800'}`}>
+              {activeSermon?.id === sermon.id && isPlaying ? (
+                 <PauseCircle className="w-8 h-8 fill-blue-500 text-white" />
+              ) : (
+                 <PlayCircle className={`w-8 h-8 ${activeSermon?.id === sermon.id ? 'fill-blue-500 text-white' : 'fill-blue-100'}`} />
+              )}
             </div>
-            <div className="flex-1">
-              <h3 className="font-bold text-gray-900 mb-1 leading-tight text-[15px]">{sermon.title}</h3>
-              <p className="text-sm text-blue-600 font-medium mb-1.5">{sermon.speaker}</p>
+            <div className="flex-1 min-w-0">
+              <h3 className={`font-bold mb-1 leading-tight text-[15px] truncate transition-colors ${activeSermon?.id === sermon.id ? 'text-blue-900' : 'text-gray-900'}`}>{sermon.title}</h3>
+              <p className={`text-sm font-medium mb-1.5 truncate transition-colors ${activeSermon?.id === sermon.id ? 'text-blue-700' : 'text-blue-600'}`}>{sermon.speaker}</p>
               <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">
                 <span>{sermon.date}</span>
                 <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {sermon.duration}</span>
@@ -411,11 +551,85 @@ export function SermonsView() {
           </div>
         ))}
       </div>
+
+      {activeSermon && (
+        <div className="fixed bottom-[80px] left-0 right-0 px-4 z-40 animate-in slide-in-from-bottom-5 fade-in duration-300 pointer-events-none">
+           <div className="max-w-md mx-auto bg-gray-900 text-white rounded-[2xl] p-4 shadow-2xl flex flex-col gap-3 pointer-events-auto ring-1 ring-white/10">
+              <div className="flex items-center justify-between gap-3">
+                 <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
+                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 opacity-80" />
+                    <PlayCircle className="w-6 h-6 absolute text-white drop-shadow-md" />
+                 </div>
+                 <div className="flex-1 min-w-0">
+                    <h4 className="font-bold text-[14px] truncate text-white">{activeSermon.title}</h4>
+                    <p className="text-[11px] text-gray-400 truncate">{activeSermon.speaker}</p>
+                 </div>
+                 <div className="flex items-center gap-3">
+                    <button onClick={() => {
+                        if (isAudioFile && audioRef.current) {
+                           audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
+                        } else if (playerRef.current && cleanAudioUrl && (isYoutube || isSoundcloud)) {
+                           const curr = playerRef.current.getCurrentTime() || 0;
+                           playerRef.current.seekTo(Math.max(0, curr - 10));
+                        } else {
+                           setProgress(Math.max(0, progress - 10));
+                        }
+                    }} className="text-gray-400 hover:text-white active:scale-90 transition-transform">
+                       <SkipBack className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white text-gray-900 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-transform">
+                       {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+                    </button>
+                    <button onClick={() => {
+                        if (isAudioFile && audioRef.current) {
+                           const dur = audioRef.current.duration || 0;
+                           audioRef.current.currentTime = Math.min(dur, audioRef.current.currentTime + 10);
+                        } else if (playerRef.current && cleanAudioUrl && (isYoutube || isSoundcloud)) {
+                           const dur = playerRef.current.getDuration() || 0;
+                           const curr = playerRef.current.getCurrentTime() || 0;
+                           playerRef.current.seekTo(Math.min(dur, curr + 10));
+                        } else {
+                           setProgress(Math.min(100, progress + 10));
+                        }
+                    }} className="text-gray-400 hover:text-white active:scale-90 transition-transform">
+                       <SkipForward className="w-5 h-5" />
+                    </button>
+                 </div>
+                 <button onClick={() => { setIsPlaying(false); setActiveSermon(null); setIsReady(false); setProgress(0); }} className="text-gray-500 ml-1 hover:text-white transition-colors p-1">
+                    <X className="w-5 h-5" />
+                 </button>
+              </div>
+              <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden flex cursor-pointer group" onClick={(e) => {
+                 const bounds = e.currentTarget.getBoundingClientRect();
+                 const x = Math.max(0, Math.min(e.clientX - bounds.left, bounds.width));
+                 const p = (x / bounds.width);
+                 if (isAudioFile && audioRef.current) {
+                   const dur = audioRef.current.duration;
+                   if (dur && isFinite(dur)) {
+                     audioRef.current.currentTime = p * dur;
+                     setProgress(p * 100);
+                   }
+                 } else if (playerRef.current && cleanAudioUrl && (isYoutube || isSoundcloud)) {
+                   const dur = playerRef.current.getDuration();
+                   if (dur) playerRef.current.seekTo(p * dur);
+                 } else {
+                   setProgress(p * 100);
+                 }
+              }}>
+                 <div className="h-full bg-blue-500 transition-all duration-300 relative" style={{ width: `${progress}%` }}>
+                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"></div>
+                 </div>
+              </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 }
 
 export function TimetableView() {
+  const { data } = useAppData();
+  const { upcomingEvents } = data;
   const [currentDate, setCurrentDate] = useState(new Date(2026, 4, 1)); // May 2026
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date(2026, 4, 30));
 
@@ -455,7 +669,14 @@ export function TimetableView() {
   const getEventsForDate = (date: Date | null) => {
     if (!date) return [];
     const dateString = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-    return upcomingEvents.filter(e => e.date === dateString);
+    const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+    const currentDayName = dayNames[date.getDay()];
+
+    return upcomingEvents.filter(e => {
+       if (e.date && e.date === dateString) return true;
+       if (!e.date && e.day && typeof e.day === 'string' && e.day.includes(currentDayName)) return true;
+       return false;
+    });
   };
 
   const nextMonth = () => setCurrentDate(new Date(year, month + 1, 1));
@@ -535,9 +756,11 @@ export function TimetableView() {
             {selectedEvents.map((item) => (
               <div key={item.id} className="bg-white border-l-[6px] border-blue-600 rounded-r-3xl rounded-l-md p-5 shadow-sm relative overflow-hidden group cursor-pointer active:scale-95 transition-transform hover:shadow-md">
                 <div className="absolute top-0 right-0 p-3">
-                   <div className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
-                     {item.type}
-                   </div>
+                   {item.type && (
+                     <div className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                       {item.type}
+                     </div>
+                   )}
                 </div>
                 
                 <h4 className="font-bold text-gray-900 text-[16px] tracking-tight mb-3 pr-16">{item.title}</h4>
@@ -570,36 +793,18 @@ export function TimetableView() {
             <div className="w-12 h-12 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-3">
                <CalendarIcon className="w-6 h-6 text-gray-400" />
             </div>
-            <p className="text-gray-600 font-medium text-sm">No special events scheduled for this day.</p>
-            <p className="text-gray-400 text-xs mt-1">Check our regular weekly timetable below.</p>
+            <p className="text-gray-600 font-medium text-sm">No events or activities scheduled for this day.</p>
           </div>
         )}
       </div>
-      
-      {selectedEvents.length === 0 && (
-         <div>
-            <h3 className="font-bold text-lg text-gray-900 mb-3 px-1">Regular Weekly Schedule</h3>
-            <div className="flex flex-col gap-3">
-               {timetable.map((item) => (
-                  <div key={item.id} className="bg-white border text-left flex items-center justify-between border-gray-100 rounded-2xl p-4 shadow-sm hover:border-gray-200 transition-colors">
-                     <div>
-                        <h4 className="font-bold text-gray-900 text-[14px] leading-tight">{item.title}</h4>
-                        <p className="text-[11px] font-medium text-gray-500">{item.day} • {item.time}</p>
-                     </div>
-                     <span className="text-[10px] bg-gray-50 text-gray-600 font-bold px-2 py-1 rounded-full uppercase truncate max-w-[100px] text-center">
-                        {item.location}
-                     </span>
-                  </div>
-               ))}
-            </div>
-         </div>
-      )}
 
     </div>
   )
 }
 
 export function ProfileView() {
+  const { data } = useAppData();
+  const { testimonies } = data;
   return (
     <div className="p-5 flex flex-col gap-6">
       <div className="text-center mt-3 mb-0">
@@ -685,34 +890,77 @@ export function ProfileView() {
            </div>
         </div>
       </div>
+
+      <div>
+        <h3 className="font-bold text-lg text-gray-900 mb-3 px-1">Location</h3>
+        <div className="bg-white border border-gray-100 rounded-3xl p-5 shadow-sm overflow-hidden flex flex-col gap-4">
+           <div className="rounded-2xl overflow-hidden border border-gray-200">
+             <iframe
+               title="Google Maps Location"
+               src="https://maps.google.com/maps?q=AFM%20in%20Zimbabwe%20Gethsemane%20Assembly%20Bulawayo&t=&z=13&ie=UTF8&iwloc=&output=embed"
+               width="100%"
+               height="200"
+               style={{ border: 0 }}
+               allowFullScreen
+               loading="lazy"
+               referrerPolicy="no-referrer-when-downgrade"
+             ></iframe>
+           </div>
+           <div className="flex flex-col gap-3">
+             <div className="flex gap-3">
+               <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                 <MapPin className="w-5 h-5 text-blue-600" />
+               </div>
+               <div className="pt-0.5">
+                 <h4 className="font-bold text-[15px] text-gray-900 leading-tight">Gethsemane Assembly</h4>
+                 <p className="text-gray-500 text-[13px] font-medium mt-0.5">
+                   AFM IN ZIMBABWE - BYO SOUTH<br/>
+                   Bulawayo, Zimbabwe
+                 </p>
+               </div>
+             </div>
+             <a
+               href="https://maps.google.com/maps?q=AFM%20in%20Zimbabwe%20Gethsemane%20Assembly%20Bulawayo"
+               target="_blank"
+               rel="noopener noreferrer"
+               className="w-full bg-gray-50 text-blue-600 font-bold text-sm py-3 rounded-xl hover:bg-blue-50 transition-colors flex justify-center items-center gap-2"
+             >
+               View on Google Maps
+               <MapPin className="w-4 h-4" />
+             </a>
+           </div>
+        </div>
+      </div>
     </div>
   )
 }
 
 export function ConnectView() {
+  const { data } = useAppData();
+  const { prayerRequests, cellGroups } = data;
   const [notifications, setNotifications] = useState(() => {
     return localStorage.getItem('afm_notifications') === 'true';
   });
 
-  const [activeConnectTab, setActiveConnectTab] = useState<'contact' | 'prayerWall'>('contact');
+  const [activeConnectTab, setActiveConnectTab] = useState<'contact' | 'prayerWall' | 'cellGroups'>('contact');
   const [isPrayerModalOpen, setIsPrayerModalOpen] = useState(false);
   const [prayerName, setPrayerName] = useState("");
   const [prayerRequest, setPrayerRequest] = useState("");
   
   // Local state to keep track of prayed count interactions
-  const [prayedCounts, setPrayedCounts] = useState<{ [key: number]: number }>(() => {
-    const counts: { [key: number]: number } = {};
-    prayerRequests.forEach(p => {
+  const [prayedCounts, setPrayedCounts] = useState<{ [key: string]: number }>(() => {
+    const counts: { [key: string]: number } = {};
+    prayerRequests.forEach((p: any) => {
        counts[p.id] = p.prayersCount;
     });
     return counts;
   });
   
-  const [userPrayed, setUserPrayed] = useState<{ [key: number]: boolean }>({});
+  const [userPrayed, setUserPrayed] = useState<{ [key: string]: boolean }>({});
 
-  const handlePrayClick = (id: number) => {
+  const handlePrayClick = (id: string) => {
     if (userPrayed[id]) return;
-    setPrayedCounts(prev => ({ ...prev, [id]: prev[id] + 1 }));
+    setPrayedCounts(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
     setUserPrayed(prev => ({ ...prev, [id]: true }));
   };
 
@@ -745,6 +993,16 @@ export function ConnectView() {
           }`}
         >
           Contact Us
+        </button>
+        <button
+          onClick={() => setActiveConnectTab('cellGroups')}
+          className={`flex-1 py-2.5 text-sm font-bold rounded-xl transition-all ${
+            activeConnectTab === 'cellGroups' 
+              ? 'bg-white text-gray-900 shadow-sm' 
+              : 'text-gray-500'
+          }`}
+        >
+          Cell Groups
         </button>
         <button
           onClick={() => setActiveConnectTab('prayerWall')}
@@ -849,13 +1107,48 @@ export function ConnectView() {
         </div>
       )}
 
-      <button 
-        onClick={() => setIsPrayerModalOpen(true)}
-        className="flex items-center justify-center gap-2.5 w-full bg-blue-800 text-white font-extrabold rounded-2xl py-4 active:scale-95 transition-transform shadow-lg shadow-blue-900/20 mt-2"
-      >
-        <Heart className="w-5 h-5 text-red-300" fill="currentColor" />
-        <span className="text-[15px]">Submit Prayer Request</span>
-      </button>
+      {activeConnectTab === 'cellGroups' && (
+        <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+          <div className="flex items-center justify-between px-1">
+             <h3 className="font-bold text-gray-900 text-lg">Find a Cell Group</h3>
+          </div>
+          <div className="flex flex-col gap-3">
+             {cellGroups.map((group) => (
+               <div key={group.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col gap-2">
+                 <div className="flex items-center justify-between mb-1">
+                   <h4 className="font-bold text-[16px] text-gray-900 leading-tight">{group.name}</h4>
+                 </div>
+                 <div className="space-y-1.5 text-sm text-gray-600 font-medium my-1">
+                   <div className="flex gap-2">
+                     <MapPin className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" />
+                     <span className="leading-tight">{group.area}</span>
+                   </div>
+                   <div className="flex items-center gap-2">
+                     <User className="w-4 h-4 text-gray-400" />
+                     <span>{group.leader}</span>
+                   </div>
+                 </div>
+                 <div className="mt-2 pt-3 border-t border-gray-50 flex items-center justify-between">
+                   <div className="flex items-center gap-2 text-sm font-bold text-gray-700">
+                     <Phone className="w-4 h-4 text-emerald-500" />
+                     <a href={`tel:${group.phone?.replace(/\s+/g, '')}`}>{group.phone}</a>
+                   </div>
+                 </div>
+               </div>
+             ))}
+          </div>
+        </div>
+      )}
+
+      {activeConnectTab === 'prayerWall' && (
+        <button 
+          onClick={() => setIsPrayerModalOpen(true)}
+          className="flex items-center justify-center gap-2.5 w-full bg-blue-800 text-white font-extrabold rounded-2xl py-4 active:scale-95 transition-transform shadow-lg shadow-blue-900/20 mt-2"
+        >
+          <Heart className="w-5 h-5 text-red-300" fill="currentColor" />
+          <span className="text-[15px]">Submit Prayer Request</span>
+        </button>
+      )}
 
       {isPrayerModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -911,6 +1204,8 @@ export function ConnectView() {
 }
 
 export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) => void }) {
+  const { data, updateData } = useAppData();
+  const { announcements, testimonies, sermons, galleryImages, upcomingEvents, timetable } = data;
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -1043,6 +1338,8 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
 }
 
 export function GalleryView() {
+  const { data } = useAppData();
+  const { galleryImages } = data;
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
 
   return (
