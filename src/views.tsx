@@ -942,6 +942,8 @@ export function ConnectView() {
     return localStorage.getItem('afm_notifications') === 'true';
   });
 
+  const [prayerFilter, setPrayerFilter] = useState<'recent' | 'highest'>('recent');
+
   const [activeConnectTab, setActiveConnectTab] = useState<'contact' | 'prayerWall' | 'cellGroups'>('contact');
   const [isPrayerModalOpen, setIsPrayerModalOpen] = useState(false);
   const [prayerName, setPrayerName] = useState("");
@@ -957,6 +959,16 @@ export function ConnectView() {
   });
   
   const [userPrayed, setUserPrayed] = useState<{ [key: string]: boolean }>({});
+
+  const sortedPrayerRequests = [...prayerRequests].sort((a: any, b: any) => {
+    if (prayerFilter === 'highest') {
+       const countA = prayedCounts[a.id] || 0;
+       const countB = prayedCounts[b.id] || 0;
+       return countB - countA;
+    } else {
+       return new Date(b.date).getTime() - new Date(a.date).getTime();
+    }
+  });
 
   const handlePrayClick = (id: string) => {
     if (userPrayed[id]) return;
@@ -1078,10 +1090,24 @@ export function ConnectView() {
         <div className="flex flex-col gap-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
           <div className="flex items-center justify-between px-1">
             <h3 className="font-bold text-gray-900 text-lg">Community Prayers</h3>
+            <div className="flex bg-gray-100 p-1 rounded-lg">
+               <button
+                 onClick={() => setPrayerFilter('recent')}
+                 className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${prayerFilter === 'recent' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+               >
+                 Recent
+               </button>
+               <button
+                 onClick={() => setPrayerFilter('highest')}
+                 className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${prayerFilter === 'highest' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500'}`}
+               >
+                 Most Prayed
+               </button>
+            </div>
           </div>
           
           <div className="flex flex-col gap-3">
-            {prayerRequests.map((request) => (
+            {sortedPrayerRequests.map((request) => (
               <div key={request.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 flex flex-col gap-3">
                 <p className="text-[15px] font-medium text-gray-800 leading-relaxed">
                   "{request.message}"
