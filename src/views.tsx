@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import ReactPlayer from 'react-player';
+import { createPortal } from "react-dom";
 import { Clock, MapPin, PlayCircle, PauseCircle, Calendar as CalendarIcon, Phone, Mail, Heart, BellRing, X, BookOpen, ChevronRight, ChevronLeft, Smile, Flame, Megaphone, User, Quote, Share2, Users, Edit3, Settings, Lock, Image as ImageIcon, SkipBack, SkipForward, Play, Pause } from "lucide-react";
 import { useAppData } from "./context";
 import { TabContext } from "./types";
@@ -70,18 +70,32 @@ function SundayTracker() {
 }
 
 function TestimoniesSection() {
-  const { data } = useAppData();
+  const { data, addData } = useAppData();
   const { testimonies } = data;
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [name, setName] = useState("");
   const [testimony, setTestimony] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Testimony Submitted:", { name, testimony });
-    setIsModalOpen(false);
-    setName("");
-    setTestimony("");
+    if (!testimony.trim()) return;
+    
+    setIsSubmitting(true);
+    try {
+      await addData('testimonies', {
+        name: name.trim() || 'Anonymous',
+        message: testimony,
+        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+      });
+      setIsModalOpen(false);
+      setName("");
+      setTestimony("");
+    } catch (error) {
+      console.error("Failed to submit testimony:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -95,12 +109,12 @@ function TestimoniesSection() {
           Share Yours +
         </button>
       </div>
-      <div className="flex flex-col gap-3">
+      <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory pt-2 -mx-5 px-5 [&::-webkit-scrollbar]:hidden">
         {testimonies.map((item) => (
-          <div key={item.id} className="bg-emerald-50 border border-emerald-100 rounded-3xl p-5 shadow-sm relative overflow-hidden">
+          <div key={item.id} className="bg-emerald-50 border border-emerald-100 rounded-3xl p-5 shadow-sm relative overflow-hidden min-w-[280px] max-w-[320px] shrink-0 snap-center">
             <Quote className="w-8 h-8 text-emerald-200 absolute top-4 right-4 rotate-180" fill="currentColor" />
             <p className="text-gray-700 text-[13px] leading-relaxed font-medium mb-3 relative z-10">"{item.message}"</p>
-            <div className="flex justify-between items-center relative z-10">
+            <div className="flex justify-between items-center relative z-10 mt-auto">
               <span className="font-bold text-gray-900 text-xs">{item.name}</span>
               <span className="text-[10px] font-bold text-emerald-500 uppercase tracking-wide">{item.date}</span>
             </div>
@@ -125,14 +139,13 @@ function TestimoniesSection() {
             </div>
             <form onSubmit={handleSubmit} className="flex flex-col gap-4">
               <div className="flex flex-col gap-1.5">
-                <label htmlFor="testimonyName" className="text-sm font-bold text-gray-700 ml-1">Your Name</label>
+                <label htmlFor="testimonyName" className="text-sm font-bold text-gray-700 ml-1">Your Name (Optional)</label>
                 <input 
                   id="testimonyName"
                   type="text" 
-                  required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  placeholder="John Doe"
+                  placeholder="Anonymous"
                   className="bg-gray-50 border border-gray-200 text-gray-900 text-[15px] rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 block w-full p-3 font-medium outline-none transition-shadow"
                 />
               </div>
@@ -150,9 +163,10 @@ function TestimoniesSection() {
               </div>
               <button 
                 type="submit" 
-                className="mt-2 w-full text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-4 focus:outline-none focus:ring-emerald-300 font-extrabold rounded-xl text-[15px] px-5 py-3.5 text-center transition-colors shadow-md shadow-emerald-500/30"
+                disabled={isSubmitting}
+                className="mt-2 w-full text-white bg-emerald-600 hover:bg-emerald-700 focus:ring-4 focus:outline-none focus:ring-emerald-300 font-extrabold rounded-xl text-[15px] px-5 py-3.5 text-center transition-colors shadow-md shadow-emerald-500/30 disabled:opacity-70"
               >
-                Submit Testimony
+                {isSubmitting ? 'Submitting...' : 'Submit Testimony'}
               </button>
             </form>
           </div>
@@ -165,9 +179,35 @@ function TestimoniesSection() {
 function DailyDevotion() {
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [shareImage, setShareImage] = useState<string | null>(null);
+  const [isReadingPlanOpen, setIsReadingPlanOpen] = useState(false);
 
   const verseText = "But they that wait upon the Lord shall renew their strength; they shall mount up with wings as eagles; they shall run, and not be weary; and they shall walk, and not faint.";
   const verseRef = "Isaiah 40:31";
+  
+  const readingPlanContent = `Psalm 13
+1 How long, Lord? Will you forget me forever?
+  How long will you hide your face from me?
+2 How long must I wrestle with my thoughts
+  and day after day have sorrow in my heart?
+  How long will my enemy triumph over me?
+3 Look on me and answer, Lord my God.
+  Give light to my eyes, or I will sleep in death,
+4 and my enemy will say, "I have overcome him,"
+  and my foes will rejoice when I fall.
+5 But I trust in your unfailing love;
+  my heart rejoices in your salvation.
+6 I will sing the Lord's praise,
+  for he has been good to me.
+
+Psalm 14
+1 The fool says in his heart,
+  "There is no God."
+  They are corrupt, their deeds are vile;
+  there is no one who does good.
+2 The Lord looks down from heaven
+  on all mankind
+  to see if there are any who understand,
+  any who seek God.`;
 
   const generateImage = () => {
     const canvas = document.createElement("canvas");
@@ -267,10 +307,42 @@ function DailyDevotion() {
            <h4 className="text-[11px] font-bold text-blue-600 uppercase tracking-widest mb-2">Reading Plan</h4>
            <div className="flex items-center justify-between bg-gray-50/50 p-3 rounded-2xl border border-gray-100">
              <span className="font-bold text-[13px] text-gray-900">Day 144: Psalms 13-15</span>
-             <button className="text-[11px] bg-blue-100/50 text-blue-700 font-bold px-3.5 py-1.5 rounded-full hover:bg-blue-100 transition-colors">Read</button>
+             <button 
+               onClick={() => setIsReadingPlanOpen(true)}
+               className="text-[11px] bg-blue-100/50 text-blue-700 font-bold px-3.5 py-1.5 rounded-full hover:bg-blue-100 transition-colors"
+             >
+               Read
+             </button>
            </div>
         </div>
       </div>
+
+      {isReadingPlanOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-[400px] h-[70vh] flex flex-col shadow-2xl relative animate-in fade-in zoom-in duration-200">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
+              <h3 className="font-extrabold text-lg text-gray-900 tracking-tight">Day 144: Psalms 13-15</h3>
+              <button 
+                onClick={() => setIsReadingPlanOpen(false)}
+                className="w-8 h-8 flex items-center justify-center bg-gray-100 rounded-full text-gray-500 hover:bg-gray-200 transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-5 overflow-y-auto flex-1 font-serif text-gray-800 leading-relaxed text-[15px] whitespace-pre-wrap">
+              {readingPlanContent}
+            </div>
+            <div className="p-4 border-t border-gray-100 shrink-0">
+              <button 
+                onClick={() => setIsReadingPlanOpen(false)}
+                className="w-full bg-blue-600 text-white font-extrabold rounded-xl py-3.5 hover:bg-blue-700 transition-colors shadow-md shadow-blue-500/30"
+              >
+                Done Reading
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {isShareModalOpen && shareImage && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -302,14 +374,141 @@ function DailyDevotion() {
   );
 }
 
+function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [kjvBible, setKjvBible] = useState<any[] | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [selectedBookIndex, setSelectedBookIndex] = useState(0);
+  const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
+
+  useEffect(() => {
+    if (isOpen && !kjvBible && !isLoading) {
+      setIsLoading(true);
+      fetch('/kjv.json')
+        .then(res => res.json())
+        .then(data => {
+          setKjvBible(data);
+          setIsLoading(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setError(true);
+          setIsLoading(false);
+        });
+    }
+  }, [isOpen, kjvBible, isLoading]);
+
+  if (!isOpen) return null;
+  
+  if (isLoading) {
+    return createPortal(
+       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+         <div className="bg-white p-6 rounded-3xl text-gray-900 shadow-2xl flex flex-col items-center gap-3">
+           <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin"></div>
+           <div className="font-bold">Loading Bible Data... (approx 4.5MB)</div>
+         </div>
+       </div>,
+       document.body
+    );
+  }
+
+  if (error || !kjvBible || !Array.isArray(kjvBible)) {
+    return createPortal(
+       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+         <div className="bg-white p-6 rounded-3xl font-bold text-gray-900 flex flex-col items-center shadow-2xl">
+            <p className="mb-4">Error loading bible data.</p>
+            <button onClick={onClose} className="px-5 py-2 bg-emerald-600 text-white rounded-xl active:scale-95 transition-transform">Close</button>
+         </div>
+       </div>,
+       document.body
+    );
+  }
+
+  const selectedBook = kjvBible[selectedBookIndex] || kjvBible[0];
+  
+  if (!selectedBook || !selectedBook.chapters) {
+    return createPortal(
+       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+         <div className="bg-white p-6 rounded-3xl font-bold text-gray-900 flex flex-col items-center shadow-2xl">
+            <p className="mb-4">Error loading book data.</p>
+            <button onClick={onClose} className="px-5 py-2 bg-emerald-600 text-white rounded-xl active:scale-95 transition-transform">Close</button>
+         </div>
+       </div>,
+       document.body
+    );
+  }
+
+  const selectedChapterContent = selectedBook.chapters[selectedChapterIndex] || selectedBook.chapters[0] || [];
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl w-full max-w-[500px] h-[80vh] flex flex-col shadow-2xl relative animate-in fade-in zoom-in duration-200">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0 bg-emerald-600 text-white rounded-t-3xl">
+          <div className="flex items-center gap-3">
+             <BookOpen className="w-5 h-5 text-emerald-100" />
+             <h3 className="font-extrabold text-lg tracking-tight">Offline Bible</h3>
+          </div>
+          <button 
+            onClick={onClose}
+            className="w-8 h-8 flex items-center justify-center bg-white/20 rounded-full text-white hover:bg-white/30 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="flex bg-gray-50 border-b border-gray-100 shrink-0">
+           <div className="flex-1 border-r border-gray-200">
+              <select 
+                className="w-full bg-transparent p-3 text-sm font-bold text-gray-900 outline-none appearance-none"
+                value={selectedBookIndex}
+                onChange={(e) => {
+                  setSelectedBookIndex(Number(e.target.value));
+                  setSelectedChapterIndex(0);
+                }}
+              >
+                {kjvBible.map((b, i) => (
+                   <option key={i} value={i}>{b.name}</option>
+                ))}
+              </select>
+           </div>
+           <div className="flex-1">
+              <select 
+                 className="w-full bg-transparent p-3 text-sm font-bold text-gray-900 outline-none appearance-none"
+                 value={selectedChapterIndex}
+                 onChange={(e) => {
+                    setSelectedChapterIndex(Number(e.target.value));
+                 }}
+               >
+                 {selectedBook.chapters.map((_, i) => (
+                    <option key={i} value={i}>Chapter {i + 1}</option>
+                 ))}
+               </select>
+           </div>
+        </div>
+
+        <div className="p-6 overflow-y-auto flex-1 font-serif text-gray-800 leading-relaxed text-[16px] bg-[#fcfaf8]">
+          <h2 className="text-2xl font-bold mb-6 text-center text-gray-900">{selectedBook.name || selectedBook.abbrev} {selectedChapterIndex + 1}</h2>
+          {Array.isArray(selectedChapterContent) && selectedChapterContent.map((text: string, vi: number) => (
+             <p key={vi} className="mb-3">
+               <sup className="font-sans font-bold text-[10px] text-emerald-600 mr-1.5 align-super">{vi + 1}</sup>
+               {text}
+             </p>
+          ))}
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function HomeView() {
   const { data } = useAppData();
   const { announcements } = data;
-  const [showAllAnnouncements, setShowAllAnnouncements] = useState(false);
-  const displayedAnnouncements = showAllAnnouncements ? announcements : announcements.slice(0, 3);
+  const [isOfflineBibleOpen, setIsOfflineBibleOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-5 p-5 antialiased">
+      <OfflineBibleReader isOpen={isOfflineBibleOpen} onClose={() => setIsOfflineBibleOpen(false)} />
       <div className="bg-blue-800 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden">
         {/* Abstract shape for background depth */}
         <div className="absolute top-0 right-0 opacity-10">
@@ -340,27 +539,19 @@ export function HomeView() {
         <div className="flex items-center justify-between mb-3 px-1">
           <h3 className="font-bold text-lg text-gray-900 leading-none">Announcements</h3>
         </div>
-        <div className="flex flex-col gap-3">
-          {displayedAnnouncements.map((announcement) => (
-            <div key={announcement.id} className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex gap-4 shadow-sm">
-              <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center shrink-0">
-                <Megaphone className="w-5 h-5" />
+        <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory pt-1 -mx-5 px-5 [&::-webkit-scrollbar]:hidden">
+          {announcements.map((announcement) => (
+            <div key={announcement.id} className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex flex-col gap-3 shadow-sm min-w-[260px] max-w-[300px] shrink-0 snap-center">
+              <div className="flex items-start gap-3">
+                <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center shrink-0">
+                  <Megaphone className="w-5 h-5" />
+                </div>
+                <h4 className="font-bold text-gray-900 text-[14px] leading-tight mt-1 pt-0.5">{announcement.title}</h4>
               </div>
-              <div>
-                <h4 className="font-bold text-gray-900 text-[14px] leading-tight mb-1">{announcement.title}</h4>
-                <p className="text-gray-700 text-xs leading-relaxed font-medium mb-1.5">{announcement.message}</p>
-                <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide">{announcement.date}</div>
-              </div>
+              <p className="text-gray-700 text-xs leading-relaxed font-medium">{announcement.message}</p>
+              <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide mt-auto pt-2">{announcement.date}</div>
             </div>
           ))}
-          {announcements.length > 3 && (
-            <button
-              onClick={() => setShowAllAnnouncements(!showAllAnnouncements)}
-              className="mt-1 w-full bg-indigo-100 text-indigo-700 font-bold py-2.5 rounded-xl shadow-sm hover:bg-indigo-200 transition-colors text-sm"
-            >
-              {showAllAnnouncements ? 'Show Less' : 'See More Announcements'}
-            </button>
-          )}
         </div>
       </div>
 
@@ -371,20 +562,23 @@ export function HomeView() {
       <div>
         <h3 className="font-bold text-lg text-gray-900 mb-3 px-1">Resources</h3>
         <div className="flex flex-col gap-3">
-          <a href="https://www.bible.com" target="_blank" rel="noopener noreferrer" className="bg-emerald-50 border border-emerald-100 rounded-3xl p-4 shadow-sm flex items-center justify-between active:scale-95 transition-transform hover:shadow-md cursor-pointer group">
+          <button 
+            onClick={() => setIsOfflineBibleOpen(true)} 
+            className="bg-emerald-50 border border-emerald-100 rounded-3xl p-4 shadow-sm flex items-center justify-between active:scale-95 transition-transform hover:shadow-md cursor-pointer group w-full text-left"
+          >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-emerald-600 text-white rounded-full flex items-center justify-center flex-shrink-0 shadow-inner group-hover:scale-105 transition-transform">
                 <BookOpen className="w-6 h-6" />
               </div>
               <div>
-                <h4 className="font-bold text-gray-900 text-[15px] mb-0.5">Holy Bible</h4>
-                <p className="text-xs text-emerald-600 font-medium tracking-tight">Read online via YouVersion</p>
+                <h4 className="font-bold text-gray-900 text-[15px] mb-0.5">Holy Bible (Offline)</h4>
+                <p className="text-xs text-emerald-600 font-medium tracking-tight">Read the Bible without internet</p>
               </div>
             </div>
             <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm shrink-0">
               <ChevronRight className="w-4 h-4 text-emerald-600" />
             </div>
-          </a>
+          </button>
 
           <a href="#" className="bg-blue-50 border border-blue-100 rounded-3xl p-4 shadow-sm flex items-center justify-between active:scale-95 transition-transform hover:shadow-md cursor-pointer group">
             <div className="flex items-center gap-4">
@@ -410,10 +604,6 @@ export function SermonsView() {
   const { data } = useAppData();
   const { sermons } = data;
   const [activeSermon, setActiveSermon] = useState<any | null>(null);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isReady, setIsReady] = useState(false);
-  const [progress, setProgress] = useState(0);
-  const playerRef = useRef<ReactPlayer | null>(null);
 
   const getCleanUrl = (url: string) => {
     if (!url) return '';
@@ -424,125 +614,118 @@ export function SermonsView() {
     return clean;
   };
 
+  const getYoutubeId = (url: string) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
   const cleanAudioUrl = activeSermon?.audioUrl ? getCleanUrl(activeSermon.audioUrl) : '';
   const isYoutube = cleanAudioUrl.match(/youtube\.com|youtu\.be/i);
   const isSoundcloud = cleanAudioUrl.match(/soundcloud\.com/i);
-  const isAudioFile = cleanAudioUrl && !isYoutube && !isSoundcloud;
-  const isVideoOrEmbed = isYoutube ? 'aspect-video bg-black shadow-lg relative' : isSoundcloud ? 'h-[166px] shadow-md relative' : isAudioFile ? 'h-0 opacity-0 pointer-events-none' : 'w-0 h-0 absolute opacity-0 pointer-events-none';
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (!cleanAudioUrl && isPlaying && activeSermon) {
-      interval = setInterval(() => {
-        setProgress(prev => {
-           if (prev >= 100) {
-              setIsPlaying(false);
-              return 0;
-           }
-           return prev + 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isPlaying, activeSermon, cleanAudioUrl]);
 
   const handlePlay = (sermon: any) => {
     if (activeSermon?.id === sermon.id) {
-       setIsPlaying(!isPlaying);
-    } else {
-       // Stop current player first
-       setIsPlaying(false);
        setActiveSermon(null);
-       setProgress(0);
-       setIsReady(false);
-       
-       // Mount new one in next tick
-       setTimeout(() => {
-          setActiveSermon(sermon);
-          setIsPlaying(true);
-       }, 50);
+    } else {
+       setActiveSermon(sermon);
     }
   };
 
-  const audioRef = useRef<HTMLAudioElement>(null);
-
-  useEffect(() => {
-    if (isAudioFile && audioRef.current) {
-        if (isPlaying) {
-           const playPromise = audioRef.current.play();
-           if (playPromise !== undefined) {
-             playPromise.catch(error => {
-                console.log("Audio play error:", error);
-                // Autoplay may be blocked, pause state
-                setIsPlaying(false);
-             });
-           }
-        } else {
-           audioRef.current.pause();
-        }
+  const renderMedia = () => {
+    if (!cleanAudioUrl) return null;
+    
+    if (isYoutube) {
+      const vid = getYoutubeId(cleanAudioUrl);
+      return vid ? (
+         <iframe 
+           className="w-full aspect-video rounded-2xl shadow-lg border-0"
+           src={`https://www.youtube.com/embed/${vid}?autoplay=1`} 
+           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+           allowFullScreen
+         />
+      ) : null;
     }
-  }, [isPlaying, isAudioFile, cleanAudioUrl]);
+    
+    if (isSoundcloud) {
+      return (
+         <iframe 
+           className="w-full h-[166px] rounded-2xl shadow-md border-0"
+           scrolling="no" 
+           allow="autoplay" 
+           src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(cleanAudioUrl)}&color=%233b82f6&auto_play=true&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false`}
+         />
+      );
+    }
+    
+    return (
+       <div className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-center">
+         <audio 
+           controls 
+           autoPlay 
+           src={cleanAudioUrl} 
+           className="w-full outline-none"
+         />
+       </div>
+    );
+  };
 
   return (
-    <div className={`p-5 ${activeSermon ? 'pb-32' : ''}`}>
-      {cleanAudioUrl && (
-        <div className={`w-full mb-6 rounded-2xl overflow-hidden transition-all duration-300 ${isVideoOrEmbed}`}>
-           {(isYoutube || isSoundcloud) && (
-              <ReactPlayer
-                 key={cleanAudioUrl}
-                 ref={playerRef}
-                 url={cleanAudioUrl}
-                 playing={isPlaying}
-                 width="100%"
-                 height="100%"
-                 controls={true}
-                 onReady={() => setIsReady(true)}
-                 onPlay={() => setIsPlaying(true)}
-                 onPause={() => setIsPlaying(false)}
-                 onProgress={({ played }) => setProgress(played * 100)}
-                 onEnded={() => setIsPlaying(false)}
-                 onError={(e) => {
-                    console.log("Player error", e);
-                 }}
-                 config={{
-                    youtube: {
-                       playerVars: { origin: window.location.origin }
-                    }
-                 }}
-              />
-           )}
-           {isAudioFile && (
-              <audio 
-                ref={audioRef}
-                src={cleanAudioUrl} 
-                onTimeUpdate={(e) => {
-                   const curr = e.currentTarget.currentTime;
-                   const dur = e.currentTarget.duration;
-                   if (dur) setProgress((curr / dur) * 100);
-                }}
-                onEnded={() => setIsPlaying(false)}
-                onPlay={() => setIsPlaying(true)}
-                onPause={() => setIsPlaying(false)}
-                onError={(e) => console.log("Native Audio Error", e)}
-                style={{ display: 'none' }}
-              />
-           )}
+    <div className={`p-5 pb-8`}>
+      {activeSermon && cleanAudioUrl && (
+        <div className="w-full mb-6 relative animate-in fade-in slide-in-from-top-4 duration-300">
+           <div className="flex flex-col mb-3 px-1">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1">
+                  <h3 className="font-bold text-gray-900 leading-tight">{activeSermon.title}</h3>
+                  <p className="text-gray-500 text-[13px] font-medium">{activeSermon.speaker}</p>
+                  {activeSermon.scripture && (
+                    <p className="text-[13px] font-bold text-blue-600 mt-1 flex items-center gap-1.5">
+                      <BookOpen className="w-3.5 h-3.5" /> 
+                      {activeSermon.scripture}
+                    </p>
+                  )}
+                </div>
+                <button onClick={() => setActiveSermon(null)} className="w-8 h-8 flex items-center justify-center bg-gray-100 text-gray-600 rounded-full hover:bg-gray-200 transition-colors shrink-0">
+                   <X className="w-4 h-4" />
+                </button>
+              </div>
+              {activeSermon.summary && (
+                <div className="mt-3 text-[13px] text-gray-700 leading-relaxed italic bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+                  {activeSermon.summary}
+                </div>
+              )}
+           </div>
+           {renderMedia()}
         </div>
       )}
+      
       <h2 className="font-extrabold text-3xl text-gray-900 mb-5 px-1 tracking-tight">Sermons</h2>
       <div className="flex flex-col gap-3.5">
         {sermons.map((sermon: any) => (
           <div key={sermon.id} onClick={() => handlePlay(sermon)} className={`p-4 rounded-3xl border shadow-sm flex gap-4 items-center active:scale-95 transition-all cursor-pointer hover:shadow-md ${activeSermon?.id === sermon.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
             <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${activeSermon?.id === sermon.id ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800'}`}>
-              {activeSermon?.id === sermon.id && isPlaying ? (
-                 <PauseCircle className="w-8 h-8 fill-blue-500 text-white" />
+              {activeSermon?.id === sermon.id ? (
+                 <div className="flex items-center justify-center gap-0.5">
+                    <div className="w-1 h-3 bg-white animate-[bounce_1s_infinite_0ms] rounded-full"></div>
+                    <div className="w-1 h-4 bg-white animate-[bounce_1s_infinite_200ms] rounded-full mx-0.5"></div>
+                    <div className="w-1 h-3 bg-white animate-[bounce_1s_infinite_400ms] rounded-full"></div>
+                 </div>
               ) : (
-                 <PlayCircle className={`w-8 h-8 ${activeSermon?.id === sermon.id ? 'fill-blue-500 text-white' : 'fill-blue-100'}`} />
+                 <PlayCircle className={`w-8 h-8 fill-blue-100`} />
               )}
             </div>
             <div className="flex-1 min-w-0">
               <h3 className={`font-bold mb-1 leading-tight text-[15px] truncate transition-colors ${activeSermon?.id === sermon.id ? 'text-blue-900' : 'text-gray-900'}`}>{sermon.title}</h3>
               <p className={`text-sm font-medium mb-1.5 truncate transition-colors ${activeSermon?.id === sermon.id ? 'text-blue-700' : 'text-blue-600'}`}>{sermon.speaker}</p>
+              {sermon.scripture && (
+                <p className="text-xs text-gray-500 font-medium mb-1.5 line-clamp-1"><BookOpen className="w-3 h-3 inline mr-1 opacity-70" /> {sermon.scripture}</p>
+              )}
+              {sermon.summary && activeSermon?.id === sermon.id && (
+                <div className="mb-2 mt-2 px-3 py-2 bg-blue-50/50 rounded-xl border border-blue-100">
+                  <p className="text-xs text-gray-600 leading-relaxed italic whitespace-pre-wrap">{sermon.summary}</p>
+                </div>
+              )}
               <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">
                 <span>{sermon.date}</span>
                 <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {sermon.duration}</span>
@@ -551,78 +734,6 @@ export function SermonsView() {
           </div>
         ))}
       </div>
-
-      {activeSermon && (
-        <div className="fixed bottom-[80px] left-0 right-0 px-4 z-40 animate-in slide-in-from-bottom-5 fade-in duration-300 pointer-events-none">
-           <div className="max-w-md mx-auto bg-gray-900 text-white rounded-[2xl] p-4 shadow-2xl flex flex-col gap-3 pointer-events-auto ring-1 ring-white/10">
-              <div className="flex items-center justify-between gap-3">
-                 <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center overflow-hidden flex-shrink-0">
-                    <div className="w-full h-full bg-gradient-to-br from-blue-500 to-purple-600 opacity-80" />
-                    <PlayCircle className="w-6 h-6 absolute text-white drop-shadow-md" />
-                 </div>
-                 <div className="flex-1 min-w-0">
-                    <h4 className="font-bold text-[14px] truncate text-white">{activeSermon.title}</h4>
-                    <p className="text-[11px] text-gray-400 truncate">{activeSermon.speaker}</p>
-                 </div>
-                 <div className="flex items-center gap-3">
-                    <button onClick={() => {
-                        if (isAudioFile && audioRef.current) {
-                           audioRef.current.currentTime = Math.max(0, audioRef.current.currentTime - 10);
-                        } else if (playerRef.current && cleanAudioUrl && (isYoutube || isSoundcloud)) {
-                           const curr = playerRef.current.getCurrentTime() || 0;
-                           playerRef.current.seekTo(Math.max(0, curr - 10));
-                        } else {
-                           setProgress(Math.max(0, progress - 10));
-                        }
-                    }} className="text-gray-400 hover:text-white active:scale-90 transition-transform">
-                       <SkipBack className="w-5 h-5" />
-                    </button>
-                    <button onClick={() => setIsPlaying(!isPlaying)} className="w-10 h-10 bg-white text-gray-900 rounded-full flex items-center justify-center hover:scale-105 active:scale-95 transition-transform">
-                       {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
-                    </button>
-                    <button onClick={() => {
-                        if (isAudioFile && audioRef.current) {
-                           const dur = audioRef.current.duration || 0;
-                           audioRef.current.currentTime = Math.min(dur, audioRef.current.currentTime + 10);
-                        } else if (playerRef.current && cleanAudioUrl && (isYoutube || isSoundcloud)) {
-                           const dur = playerRef.current.getDuration() || 0;
-                           const curr = playerRef.current.getCurrentTime() || 0;
-                           playerRef.current.seekTo(Math.min(dur, curr + 10));
-                        } else {
-                           setProgress(Math.min(100, progress + 10));
-                        }
-                    }} className="text-gray-400 hover:text-white active:scale-90 transition-transform">
-                       <SkipForward className="w-5 h-5" />
-                    </button>
-                 </div>
-                 <button onClick={() => { setIsPlaying(false); setActiveSermon(null); setIsReady(false); setProgress(0); }} className="text-gray-500 ml-1 hover:text-white transition-colors p-1">
-                    <X className="w-5 h-5" />
-                 </button>
-              </div>
-              <div className="w-full h-1.5 bg-gray-800 rounded-full overflow-hidden flex cursor-pointer group" onClick={(e) => {
-                 const bounds = e.currentTarget.getBoundingClientRect();
-                 const x = Math.max(0, Math.min(e.clientX - bounds.left, bounds.width));
-                 const p = (x / bounds.width);
-                 if (isAudioFile && audioRef.current) {
-                   const dur = audioRef.current.duration;
-                   if (dur && isFinite(dur)) {
-                     audioRef.current.currentTime = p * dur;
-                     setProgress(p * 100);
-                   }
-                 } else if (playerRef.current && cleanAudioUrl && (isYoutube || isSoundcloud)) {
-                   const dur = playerRef.current.getDuration();
-                   if (dur) playerRef.current.seekTo(p * dur);
-                 } else {
-                   setProgress(p * 100);
-                 }
-              }}>
-                 <div className="h-full bg-blue-500 transition-all duration-300 relative" style={{ width: `${progress}%` }}>
-                    <div className="absolute right-0 top-1/2 -translate-y-1/2 w-2 h-2 bg-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"></div>
-                 </div>
-              </div>
-           </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -672,7 +783,7 @@ export function TimetableView() {
     const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
     const currentDayName = dayNames[date.getDay()];
 
-    return upcomingEvents.filter(e => {
+    return upcomingEvents.filter((e: any) => {
        if (e.date && e.date === dateString) return true;
        if (!e.date && e.day && typeof e.day === 'string' && e.day.includes(currentDayName)) return true;
        return false;
@@ -805,6 +916,89 @@ export function TimetableView() {
 export function ProfileView() {
   const { data } = useAppData();
   const { testimonies } = data;
+  const [selectedMinistry, setSelectedMinistry] = useState<any>(null);
+
+  const ministries = [
+    {
+      id: "sunday-school",
+      name: "Sunday School",
+      icon: Smile,
+      iconColor: "text-amber-500",
+      bgColor: "bg-amber-50",
+      borderColor: "border-amber-200",
+      hoverBorder: "hover:border-amber-200",
+      description: "Children's Ministry",
+      leader: "Sis. Sibanda",
+      eligibleMembers: "Children ages 3 to 12",
+      bio: "Sunday School is dedicated to raising a generation that loves and serves God. We engage children with interactive Bible lessons, songs, and fun activities that help them grow in their faith."
+    },
+    {
+      id: "youth",
+      name: "Youth Dept",
+      icon: Flame,
+      iconColor: "text-purple-500",
+      bgColor: "bg-purple-50",
+      borderColor: "border-purple-200",
+      hoverBorder: "hover:border-purple-200",
+      description: "Empowering next gen",
+      leader: "Bro. Moyo",
+      eligibleMembers: "Youth and Young Adults ages 13 to 35",
+      bio: "Our Youth Department empowers the next generation to be bold in their faith and impact their communities. We host dynamic services, youth camps, and skills development workshops."
+    },
+    {
+      id: "mens-fellowship",
+      name: "Men's Fellowship",
+      icon: Users,
+      iconColor: "text-blue-500",
+      bgColor: "bg-blue-50",
+      borderColor: "border-blue-200",
+      hoverBorder: "hover:border-blue-200",
+      description: "Fathers & Builders",
+      leader: "Elder Dube",
+      eligibleMembers: "Men aged 35 and above, or married men",
+      bio: "The Men's Fellowship exists to equip and strengthen men to be godly leaders in their homes, workplace, and the church. We stand together as fathers and builders."
+    },
+    {
+      id: "womens-fellowship",
+      name: "Women's Fellowship",
+      icon: Heart,
+      iconColor: "text-pink-500",
+      bgColor: "bg-pink-50",
+      borderColor: "border-pink-200",
+      hoverBorder: "hover:border-pink-200",
+      description: "Mothers & Pillars",
+      leader: "Mrs. Ndlovu",
+      eligibleMembers: "Women aged 35 and above, or married women",
+      bio: "A community of virtuous women serving as pillars in the church. We engage in prayer, charitable projects, and mentorship to uplift each other."
+    },
+    {
+      id: "evangelism",
+      name: "Evangelism",
+      icon: Megaphone,
+      iconColor: "text-teal-500",
+      bgColor: "bg-teal-50",
+      borderColor: "border-teal-200",
+      hoverBorder: "hover:border-teal-200",
+      description: "Preaching the word",
+      leader: "Evangelist Mpofu",
+      eligibleMembers: "Open to all passionate about soul winning",
+      bio: "Taking the Gospel to the streets, hospitals, and communities. Our evangelism team is committed to fulfilling the Great Commission and demonstrating God's love to the world."
+    },
+    {
+      id: "media-sound",
+      name: "Media & Sound",
+      icon: PlayCircle,
+      iconColor: "text-indigo-500",
+      bgColor: "bg-indigo-50",
+      borderColor: "border-indigo-200",
+      hoverBorder: "hover:border-indigo-200",
+      description: "Tech & PA Team",
+      leader: "Bro. Ncube",
+      eligibleMembers: "Anyone with an interest in tech, audio, or video",
+      bio: "We manage the sound engineering, live streaming, and media presentation for all church services. We use technology as a tool to amplify the Gospel message."
+    }
+  ];
+
   return (
     <div className="p-5 flex flex-col gap-6">
       <div className="text-center mt-3 mb-0">
@@ -858,36 +1052,20 @@ export function ProfileView() {
       <div>
         <h3 className="font-bold text-lg text-gray-900 mb-3 px-1">Departments & Ministries</h3>
         <div className="grid grid-cols-2 gap-3">
-           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-amber-200 transition-colors cursor-pointer">
-              <Smile className="w-6 h-6 text-amber-500 mb-3 group-hover:scale-110 transition-transform" />
-              <h4 className="font-bold text-gray-900 text-[13px] mb-0.5">Sunday School</h4>
-              <p className="text-[10px] text-gray-500 font-medium">Children's Ministry</p>
-           </div>
-           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-purple-200 transition-colors cursor-pointer">
-              <Flame className="w-6 h-6 text-purple-500 mb-3 group-hover:scale-110 transition-transform" />
-              <h4 className="font-bold text-gray-900 text-[13px] mb-0.5">Youth Dept</h4>
-              <p className="text-[10px] text-gray-500 font-medium">Empowering next gen</p>
-           </div>
-           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-blue-200 transition-colors cursor-pointer">
-              <Users className="w-6 h-6 text-blue-500 mb-3 group-hover:scale-110 transition-transform" />
-              <h4 className="font-bold text-gray-900 text-[13px] mb-0.5">Men's Fellowship</h4>
-              <p className="text-[10px] text-gray-500 font-medium">Fathers & Builders</p>
-           </div>
-           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-pink-200 transition-colors cursor-pointer">
-              <Heart className="w-6 h-6 text-pink-500 mb-3 group-hover:scale-110 transition-transform" />
-              <h4 className="font-bold text-gray-900 text-[13px] mb-0.5">Women's Fellowship</h4>
-              <p className="text-[10px] text-gray-500 font-medium">Mothers & Pillars</p>
-           </div>
-           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-teal-200 transition-colors cursor-pointer">
-              <Megaphone className="w-6 h-6 text-teal-500 mb-3 group-hover:scale-110 transition-transform" />
-              <h4 className="font-bold text-gray-900 text-[13px] mb-0.5">Evangelism</h4>
-              <p className="text-[10px] text-gray-500 font-medium">Preaching the word</p>
-           </div>
-           <div className="bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative overflow-hidden group hover:border-indigo-200 transition-colors cursor-pointer">
-              <PlayCircle className="w-6 h-6 text-indigo-500 mb-3 group-hover:scale-110 transition-transform" />
-              <h4 className="font-bold text-gray-900 text-[13px] mb-0.5">Media & Sound</h4>
-              <p className="text-[10px] text-gray-500 font-medium">Tech & PA Team</p>
-           </div>
+          {ministries.map((ministry) => {
+            const Icon = ministry.icon;
+            return (
+              <div 
+                key={ministry.id} 
+                onClick={() => setSelectedMinistry(ministry)}
+                className={`bg-white border border-gray-100 rounded-2xl p-4 shadow-sm relative overflow-hidden group ${ministry.hoverBorder} transition-colors cursor-pointer`}
+              >
+                <Icon className={`w-6 h-6 ${ministry.iconColor} mb-3 group-hover:scale-110 transition-transform`} />
+                <h4 className="font-bold text-gray-900 text-[13px] mb-0.5">{ministry.name}</h4>
+                <p className="text-[10px] text-gray-500 font-medium">{ministry.description}</p>
+              </div>
+            );
+          })}
         </div>
       </div>
 
@@ -931,6 +1109,51 @@ export function ProfileView() {
            </div>
         </div>
       </div>
+
+      {selectedMinistry && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl w-full max-w-sm overflow-hidden shadow-2xl relative animate-in fade-in zoom-in duration-200">
+             <div className={`${selectedMinistry.bgColor} p-6 relative overflow-hidden flex flex-col items-center justify-center text-center`}>
+                <button 
+                  onClick={() => setSelectedMinistry(null)}
+                  className="absolute top-4 right-4 w-8 h-8 flex items-center justify-center bg-white/50 backdrop-blur rounded-full text-gray-600 hover:bg-white/80 transition-colors z-10"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+                <div className={`w-16 h-16 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-4 relative z-10 ${selectedMinistry.iconColor}`}>
+                   <selectedMinistry.icon className="w-8 h-8" />
+                </div>
+                <h3 className="font-extrabold text-2xl text-gray-900 tracking-tight leading-none mb-1 relative z-10">{selectedMinistry.name}</h3>
+                <p className={`text-sm font-bold ${selectedMinistry.iconColor} uppercase tracking-widest relative z-10`}>{selectedMinistry.description}</p>
+             </div>
+             <div className="p-6 flex flex-col gap-6">
+                <div>
+                   <h4 className="font-bold text-sm text-gray-400 uppercase tracking-wider mb-2">About</h4>
+                   <p className="text-gray-700 text-sm leading-relaxed font-medium">
+                     {selectedMinistry.bio}
+                   </p>
+                </div>
+                <div className="grid grid-cols-2 gap-4 pt-4 border-t border-gray-100">
+                   <div>
+                      <h4 className="font-bold text-xs text-gray-400 uppercase tracking-wider mb-1">Leader</h4>
+                      <p className="font-bold text-gray-900 text-sm">{selectedMinistry.leader}</p>
+                   </div>
+                   <div>
+                      <h4 className="font-bold text-xs text-gray-400 uppercase tracking-wider mb-1">Eligible</h4>
+                      <p className="font-medium text-gray-800 text-[13px] leading-snug">{selectedMinistry.eligibleMembers}</p>
+                   </div>
+                </div>
+                <button 
+                  onClick={() => setSelectedMinistry(null)}
+                  className="w-full bg-gray-50 hover:bg-gray-100 text-gray-900 font-bold py-3.5 rounded-xl transition-colors mt-2"
+                >
+                  Close
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
     </div>
   )
 }
@@ -970,7 +1193,7 @@ export function ConnectView() {
     }
   });
 
-  const handlePrayClick = (id: string) => {
+  const handlePrayClick = (id: string | number) => {
     if (userPrayed[id]) return;
     setPrayedCounts(prev => ({ ...prev, [id]: (prev[id] || 0) + 1 }));
     setUserPrayed(prev => ({ ...prev, [id]: true }));

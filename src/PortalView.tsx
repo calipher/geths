@@ -270,6 +270,8 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
              fields={[
                { name: 'title', label: 'Sermon Title' },
                { name: 'speaker', label: 'Speaker' },
+               { name: 'scripture', label: 'Scripture Reference (e.g. John 3:16)' },
+               { name: 'summary', label: 'Theme / Summary', isTextArea: true },
                { name: 'duration', label: 'Duration (e.g. 45 mins)' },
                { name: 'date', label: 'Date', type: 'date' },
                { name: 'audioUrl', label: 'Audio File or Link', type: 'file_or_text', accept: 'audio/*' }

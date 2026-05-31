@@ -1,8 +1,8 @@
 export const sermons = [
-  { id: 1, title: 'The Power of Faith', date: 'May 17, 2026', speaker: 'Rev M Ndlovu', duration: '45 mins' },
-  { id: 2, title: 'Walking in the Spirit', date: 'May 10, 2026', speaker: 'Elder Dzama', duration: '52 mins' },
-  { id: 3, title: 'Grace Abounding', date: 'May 3, 2026', speaker: 'Rev M Ndlovu', duration: '48 mins' },
-  { id: 4, title: 'The Armor of God', date: 'April 26, 2026', speaker: 'Deacon Sibanda', duration: '40 mins' }
+  { id: 1, title: 'The Power of Faith', date: 'May 17, 2026', speaker: 'Rev M Ndlovu', duration: '45 mins', scripture: 'Hebrews 11:1', summary: 'Faith is the substance of things hoped for, the evidence of things not seen. \nWe explore how faith allows us to overcome obstacles and walk in our divine purpose.' },
+  { id: 2, title: 'Walking in the Spirit', date: 'May 10, 2026', speaker: 'Elder Dzama', duration: '52 mins', scripture: 'Galatians 5:16', summary: 'Walking by the Spirit keeps us securely on the path of righteousness and prevents us from gratifying the desires of the flesh.' },
+  { id: 3, title: 'Grace Abounding', date: 'May 3, 2026', speaker: 'Rev M Ndlovu', duration: '48 mins', scripture: 'Ephesians 2:8', summary: 'A deep dive into the boundless grace of God and how it freely flows to us, transforming our lives from the inside out.' },
+  { id: 4, title: 'The Armor of God', date: 'April 26, 2026', speaker: 'Deacon Sibanda', duration: '40 mins', scripture: 'Ephesians 6:11', summary: 'Putting on the full armor of God is not just defense, it is a daily discipline that sharpens our focus and prepares us for spiritual victory.' }
 ];
 
 export const upcomingEvents = [
