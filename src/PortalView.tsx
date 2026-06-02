@@ -5,12 +5,39 @@ import { TabContext } from "./types";
 import { auth, storage } from "./firebase";
 import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from "firebase/storage";
+import { toast } from 'sonner';
 
 export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) => void }) {
   const { data, addData, deleteData, updateData, loading } = useAppData();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [authError, setAuthError] = useState('');
   const [activeSection, setActiveSection] = useState<'announcements' | 'sermons' | 'events' | 'galleryImages' | 'cellGroups' | 'appSettings'>('events');
+
+  const [aiPrompt, setAiPrompt] = useState("");
+  const [isSchedulingAI, setIsSchedulingAI] = useState(false);
+
+  const handleAISchedule = async () => {
+    if (!aiPrompt.trim()) return;
+    setIsSchedulingAI(true);
+    try {
+      const res = await fetch("/api/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: aiPrompt }),
+      });
+      if (!res.ok) throw new Error("Failed to auto-schedule");
+      const { events } = await res.json();
+      for (const ev of events) {
+        await handleAddData('upcomingEvents', ev);
+      }
+      setAiPrompt("");
+      toast.success("Events successfully added from AI Auto-Scheduling!");
+    } catch (e: any) {
+      toast.error("Error generating schedule setup: " + e.message);
+    } finally {
+      setIsSchedulingAI(false);
+    }
+  };
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (user) => {
@@ -85,8 +112,9 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
         } else {
           itemToSave.url = url;
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Upload failed", e);
+        toast.error("File upload failed: " + (e.message || "Permission denied"));
         setUploading(false);
         setUploadProgress(0);
         return;
@@ -144,8 +172,9 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
         } else {
           itemToSave.url = url;
         }
-      } catch (e) {
+      } catch (e: any) {
         console.error("Upload failed", e);
+        toast.error("File upload failed: " + (e.message || "Permission denied"));
         setUploading(false);
         setUploadProgress(0);
         return;
@@ -289,32 +318,60 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
         )}
 
         {activeSection === 'events' && (
-           <SectionManager
-             title="Events & Schedule"
-             items={data.upcomingEvents}
-             onAdd={(item) => handleAddData('upcomingEvents', item)}
-             onUpdate={(id, item) => handleUpdateData('upcomingEvents', id, item)}
-             onDelete={(id) => handleDeleteData('upcomingEvents', id)}
-             fields={[
-               { name: 'title', label: 'Event Name' },
-               { name: 'date', label: 'Date (Leave blank for weekly events)', type: 'date' },
-               { name: 'day', label: 'Day of Week (For weekly events, e.g. Sunday)' },
-               { name: 'time', label: 'Time (e.g. 09:00 hrs)' },
-               { name: 'location', label: 'Location' },
-               { name: 'type', label: 'Category' },
-             ]}
-             renderItem={(item) => (
-                <div>
-                   <h4 className="font-bold text-[14px] text-gray-900">{item.title}</h4>
-                   <p className="text-[12px] text-gray-600">{item.location} • {item.time}</p>
-                   <p className="text-[10px] font-bold text-purple-600 mt-1">
-                     {item.date ? item.date : `Every ${item.day}`}
-                   </p>
+           <div className="flex flex-col gap-6">
+             <div className="bg-white rounded-3xl p-5 shadow-sm border border-purple-100 flex flex-col gap-4">
+                <div className="flex items-center gap-3">
+                   <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
+                     <CalendarIcon className="w-5 h-5" />
+                   </div>
+                   <h3 className="font-bold text-gray-900 text-[16px]">AI Auto-Scheduler</h3>
                 </div>
-             )}
-             icon={<CalendarIcon className="w-5 h-5" />}
-             colorClass="purple"
-           />
+                <p className="text-gray-500 text-sm font-medium">Describe your upcoming events in a sentence, and AI will generate and add the schedules automatically.</p>
+                <div className="flex gap-2">
+                   <input
+                     type="text"
+                     value={aiPrompt}
+                     onChange={(e) => setAiPrompt(e.target.value)}
+                     placeholder="e.g. Next Sunday we have a youth choir practice at 2PM in the Main Hall"
+                     className="flex-1 bg-gray-50 border border-gray-200 rounded-xl p-3 text-sm font-medium focus:ring-2 focus:ring-purple-500 outline-none"
+                   />
+                   <button
+                     onClick={handleAISchedule}
+                     disabled={isSchedulingAI || !aiPrompt.trim()}
+                     className="bg-purple-600 text-white px-5 py-3 rounded-xl font-bold shadow-sm hover:bg-purple-700 disabled:bg-purple-300 transition-colors"
+                   >
+                     {isSchedulingAI ? 'Scheduling...' : 'Auto-Schedule'}
+                   </button>
+                </div>
+             </div>
+
+             <SectionManager
+               title="Events & Schedule"
+               items={data.upcomingEvents}
+               onAdd={(item) => handleAddData('upcomingEvents', item)}
+               onUpdate={(id, item) => handleUpdateData('upcomingEvents', id, item)}
+               onDelete={(id) => handleDeleteData('upcomingEvents', id)}
+               fields={[
+                 { name: 'title', label: 'Event Name' },
+                 { name: 'date', label: 'Date (Leave blank for weekly events)', type: 'date' },
+                 { name: 'day', label: 'Day of Week (For weekly events, e.g. Sunday)' },
+                 { name: 'time', label: 'Time (e.g. 09:00 hrs)' },
+                 { name: 'location', label: 'Location', type: 'map_location' },
+                 { name: 'type', label: 'Category' },
+               ]}
+               renderItem={(item) => (
+                  <div>
+                     <h4 className="font-bold text-[14px] text-gray-900">{item.title}</h4>
+                     <p className="text-[12px] text-gray-600">{item.location} • {item.time}</p>
+                     <p className="text-[10px] font-bold text-purple-600 mt-1">
+                       {item.date ? item.date : `Every ${item.day}`}
+                     </p>
+                  </div>
+               )}
+               icon={<CalendarIcon className="w-5 h-5" />}
+               colorClass="purple"
+             />
+           </div>
         )}
 
         {activeSection === 'galleryImages' && (
@@ -398,11 +455,100 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
   );
 }
 
+import { MapPin } from "lucide-react";
+import { APIProvider, Map, AdvancedMarker, Pin, useMapsLibrary } from '@vis.gl/react-google-maps';
+
+const API_KEY =
+  process.env.GOOGLE_MAPS_PLATFORM_KEY ||
+  (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+  (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
+  '';
+
+function MapPickerModal({ onClose, onSelect, initialPos }: { onClose: () => void, onSelect: (addr: string) => void, initialPos?: {lat: number, lng: number} }) {
+  if (!API_KEY) {
+    return (
+      <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl w-full max-w-lg p-5 flex flex-col gap-4 shadow-xl text-center">
+          <h3 className="font-bold text-gray-900 text-lg">Google Maps API Key Missing</h3>
+          <p className="text-gray-600 text-sm">Please add the GOOGLE_MAPS_PLATFORM_KEY to your environment variables or Secrets panel to use the location picker.</p>
+          <div className="flex justify-end gap-2 mt-4">
+            <button onClick={onClose} className="px-5 py-2 font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors shadow-sm">Got it</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <APIProvider apiKey={API_KEY} version="weekly">
+      <MapPickerModalContent onClose={onClose} onSelect={onSelect} initialPos={initialPos} />
+    </APIProvider>
+  );
+}
+
+function MapPickerModalContent({ onClose, onSelect, initialPos }: { onClose: () => void, onSelect: (addr: string) => void, initialPos?: {lat: number, lng: number} }) {
+  const [markerPos, setMarkerPos] = useState(initialPos || {lat: 51.5074, lng: -0.1278}); 
+  const geocodingLib = useMapsLibrary('geocoding');
+  
+  const handleSelect = () => {
+    if (!geocodingLib) {
+      onSelect(`${markerPos.lat.toFixed(4)}, ${markerPos.lng.toFixed(4)}`);
+      onClose();
+      return;
+    }
+    const geocoder = new geocodingLib.Geocoder();
+    geocoder.geocode({ location: markerPos })
+      .then((response) => {
+        if (response.results && response.results[0]) {
+          onSelect(response.results[0].formatted_address);
+        } else {
+          onSelect(`${markerPos.lat.toFixed(4)}, ${markerPos.lng.toFixed(4)}`);
+        }
+        onClose();
+      })
+      .catch((e: any) => {
+        // Fallback to coordinates if API is not enabled
+        onSelect(`${markerPos.lat.toFixed(4)}, ${markerPos.lng.toFixed(4)}`);
+        onClose();
+      });
+  };
+
+  return (
+     <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl w-full max-w-lg p-5 flex flex-col gap-4 shadow-xl">
+            <h3 className="font-bold text-gray-900 text-lg">Pick Location</h3>
+            <div className="h-72 rounded-xl overflow-hidden relative border border-gray-100">
+               <Map
+                 defaultCenter={markerPos}
+                 defaultZoom={12}
+                 mapId="LOCATION_PICKER_MAP"
+                 onClick={(e) => {
+                   if (e.detail.latLng) setMarkerPos(e.detail.latLng);
+                 }}
+                 gestureHandling="greedy"
+                 disableDefaultUI={true}
+                 internalUsageAttributionIds={['gmp_mcp_codeassist_v1_aistudio']}
+               >
+                 <AdvancedMarker position={markerPos}>
+                   <Pin background="#2563EB" glyphColor="#fff" />
+                 </AdvancedMarker>
+               </Map>
+            </div>
+            <div className="flex justify-end gap-2 mt-2">
+               <button type="button" onClick={onClose} className="px-5 py-2 font-bold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">Cancel</button>
+               <button type="button" onClick={handleSelect} className="px-5 py-2 font-bold bg-blue-600 hover:bg-blue-700 text-white rounded-xl transition-colors shadow-sm">Confirm Location</button>
+            </div>
+        </div>
+     </div>
+  );
+}
+
 function SectionManager({ title, items, onAdd, onUpdate, onDelete, fields, renderItem, icon, colorClass, uploadProgress }: any) {
   const [isAdding, setIsAdding] = useState(false);
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [formData, setFormData] = useState<any>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showMapPickerFor, setShowMapPickerFor] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -500,6 +646,32 @@ function SectionManager({ title, items, onAdd, onUpdate, onDelete, fields, rende
                   className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none resize-none"
                   rows={3}
                 />
+              ) : f.type === 'map_location' ? (
+                <div className="flex gap-2 relative">
+                  <input
+                    required={f.required !== false}
+                    type="text"
+                    value={formData[f.name] || ''}
+                    onChange={(e) => setFormData({ ...formData, [f.name]: e.target.value })}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 pr-12 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Enter location or pick on map"
+                  />
+                  <button 
+                    type="button" 
+                    onClick={() => setShowMapPickerFor(f.name)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                  >
+                    <MapPin className="w-4 h-4" />
+                  </button>
+                  {showMapPickerFor === f.name && (
+                     <MapPickerModal
+                        onClose={() => setShowMapPickerFor(null)}
+                        onSelect={(addr) => {
+                          setFormData({ ...formData, [f.name]: addr });
+                        }}
+                     />
+                  )}
+                </div>
               ) : (
                 <input
                   required

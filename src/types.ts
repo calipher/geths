@@ -1,1 +1,1 @@
-export type TabContext = 'home' | 'sermons' | 'timetable' | 'profile' | 'connect' | 'portal' | 'gallery';
+export type TabContext = 'home' | 'sermons' | 'timetable' | 'profile' | 'connect' | 'portal' | 'notes';

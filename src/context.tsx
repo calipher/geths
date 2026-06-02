@@ -26,15 +26,15 @@ type AppData = {
 };
 
 const defaultData: AppData = {
-  sermons: [],
-  upcomingEvents: [],
-  timetable: [],
-  announcements: [],
-  testimonies: [],
-  prayerRequests: [],
-  galleryImages: [],
-  cellGroups: [],
-  appSettings: [],
+  sermons: initialSermons,
+  upcomingEvents: initialEvents,
+  timetable: initialTimetable,
+  announcements: initialAnnouncements,
+  testimonies: initialTestimonies,
+  prayerRequests: initialPrayerRequests,
+  galleryImages: initialGalleryImages,
+  cellGroups: initialCellGroups,
+  appSettings: initialAppSettings,
 };
 
 type AppDataContextType = {
@@ -54,17 +54,17 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const unsubSermons = onSnapshot(collection(db, 'sermons'), (snapshot) => {
       const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setData(prev => ({ ...prev, sermons: parsed }));
+      setData(prev => ({ ...prev, sermons: parsed.length > 0 ? parsed : initialSermons }));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'sermons'));
 
     const unsubEvents = onSnapshot(collection(db, 'upcomingEvents'), (snapshot) => {
       const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setData(prev => ({ ...prev, upcomingEvents: parsed }));
+      setData(prev => ({ ...prev, upcomingEvents: parsed.length > 0 ? parsed : initialEvents }));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'upcomingEvents'));
 
     const unsubTimetable = onSnapshot(collection(db, 'timetable'), (snapshot) => {
       const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setData(prev => ({ ...prev, timetable: parsed }));
+      setData(prev => ({ ...prev, timetable: parsed.length > 0 ? parsed : initialTimetable }));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'timetable'));
 
     const unsubAnnouncements = onSnapshot(collection(db, 'announcements'), (snapshot) => {
@@ -79,32 +79,32 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
         }
         return ts ? (now - ts) <= SEVEN_DAYS : true;
       }).sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      setData(prev => ({ ...prev, announcements: validAnnouncements }));
+      setData(prev => ({ ...prev, announcements: validAnnouncements.length > 0 ? validAnnouncements : initialAnnouncements }));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'announcements'));
 
     const unsubTestimonies = onSnapshot(collection(db, 'testimonies'), (snapshot) => {
       const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setData(prev => ({ ...prev, testimonies: parsed }));
+      setData(prev => ({ ...prev, testimonies: parsed.length > 0 ? parsed : initialTestimonies }));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'testimonies'));
 
     const unsubPrayerRequests = onSnapshot(collection(db, 'prayerRequests'), (snapshot) => {
       const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setData(prev => ({ ...prev, prayerRequests: parsed }));
+      setData(prev => ({ ...prev, prayerRequests: parsed.length > 0 ? parsed : initialPrayerRequests }));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'prayerRequests'));
 
     const unsubGalleryImages = onSnapshot(collection(db, 'galleryImages'), (snapshot) => {
       const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setData(prev => ({ ...prev, galleryImages: parsed }));
+      setData(prev => ({ ...prev, galleryImages: parsed.length > 0 ? parsed : initialGalleryImages }));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'galleryImages'));
 
     const unsubCellGroups = onSnapshot(collection(db, 'cellGroups'), (snapshot) => {
       const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setData(prev => ({ ...prev, cellGroups: parsed }));
+      setData(prev => ({ ...prev, cellGroups: parsed.length > 0 ? parsed : initialCellGroups }));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'cellGroups'));
 
     const unsubAppSettings = onSnapshot(collection(db, 'appSettings'), (snapshot) => {
       const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
-      setData(prev => ({ ...prev, appSettings: parsed }));
+      setData(prev => ({ ...prev, appSettings: parsed.length > 0 ? parsed : initialAppSettings }));
       setLoading(false);
     }, (error) => handleFirestoreError(error, OperationType.GET, 'appSettings'));
 

@@ -1,4 +1,4 @@
-import { Bell, Home, Headphones, Calendar, Users, Info, Settings, ShieldCheck, Camera, Loader2 } from "lucide-react";
+import { Bell, Home, Headphones, Calendar, Users, Info, Settings, ShieldCheck, Camera, Loader2, Edit3 } from "lucide-react";
 import { TabContext } from "./types";
 import React, { useState, useRef } from "react";
 
@@ -45,7 +45,7 @@ export function BottomNav({ activeTab, setActiveTab }: NavProps) {
     { id: 'sermons', label: 'Sermons', icon: Headphones },
     { id: 'timetable', label: 'Schedule', icon: Calendar },
     { id: 'profile', label: 'About', icon: Info },
-    { id: 'gallery', label: 'Gallery', icon: Camera },
+    { id: 'notes', label: 'Notepad', icon: Edit3 },
     { id: 'connect', label: 'Connect', icon: Users },
   ] as const;
 

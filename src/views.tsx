@@ -1,8 +1,58 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Clock, MapPin, PlayCircle, PauseCircle, Calendar as CalendarIcon, Phone, Mail, Heart, BellRing, X, BookOpen, ChevronRight, ChevronLeft, Smile, Flame, Megaphone, User, Quote, Share2, Users, Edit3, Settings, Lock, Image as ImageIcon, SkipBack, SkipForward, Play, Pause } from "lucide-react";
+import { Clock, MapPin, PlayCircle, PauseCircle, Calendar as CalendarIcon, Phone, Mail, Heart, BellRing, X, BookOpen, ChevronRight, ChevronLeft, Smile, Flame, Megaphone, User, Quote, Share2, Users, Edit3, Settings, Lock, Image as ImageIcon, SkipBack, SkipForward, Play, Pause, Trash2, Mic, MicOff, Plus, Cloud, CloudOff, LogOut, Loader2 } from "lucide-react";
 import { useAppData } from "./context";
 import { TabContext } from "./types";
+import { auth, db, googleProvider, handleFirestoreError, OperationType, googleSignInWithToken, getAccessToken } from './firebase';
+import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { collection, query, orderBy, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { toast } from 'sonner';
+
+import { APIProvider, useMapsLibrary } from '@vis.gl/react-google-maps';
+
+const GOOGLE_MAPS_API_KEY =
+  process.env.GOOGLE_MAPS_PLATFORM_KEY ||
+  (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+  (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
+  '';
+
+function ReadableLocationContent({ locationStr }: { locationStr: string }) {
+  const [address, setAddress] = useState(locationStr);
+  const geocodingLib = useMapsLibrary('geocoding');
+
+  useEffect(() => {
+    if (!geocodingLib || !locationStr) return;
+    const isCoords = /^-?\d+(\.\d+)?,\s?-?\d+(\.\d+)?$/.test(locationStr.trim());
+    
+    if (isCoords) {
+      const parts = locationStr.split(',');
+      const lat = parseFloat(parts[0].trim());
+      const lng = parseFloat(parts[1].trim());
+      const geocoder = new geocodingLib.Geocoder();
+      geocoder.geocode({ location: { lat, lng } })
+        .then((response: any) => {
+          if (response.results && response.results[0]) {
+            setAddress(response.results[0].formatted_address);
+          }
+        })
+        .catch((e: any) => {});
+    }
+  }, [geocodingLib, locationStr]);
+
+  return <span>{address}</span>;
+}
+
+export function ReadableLocation({ locationStr }: { locationStr: string }) {
+  const isCoords = /^-?\d+(\.\d+)?,\s?-?\d+(\.\d+)?$/.test((locationStr || '').trim());
+  if (!GOOGLE_MAPS_API_KEY || !isCoords || !locationStr) {
+    return <span>{locationStr}</span>;
+  }
+  return (
+    <APIProvider apiKey={GOOGLE_MAPS_API_KEY} version="weekly">
+      <ReadableLocationContent locationStr={locationStr} />
+    </APIProvider>
+  );
+}
 
 function SundayTracker() {
   const [now, setNow] = useState(new Date());
@@ -744,18 +794,87 @@ export function TimetableView() {
   const [currentDate, setCurrentDate] = useState(new Date(2026, 4, 1)); // May 2026
   const [selectedDate, setSelectedDate] = useState<Date | null>(new Date(2026, 4, 30));
 
+  const handleSyncToCalendar = async (item: any) => {
+    try {
+      let token = await getAccessToken();
+      if (!token) {
+        const result = await googleSignInWithToken();
+        token = result.accessToken;
+      }
+      
+      let startDateTime = new Date();
+      if (item.date) {
+        startDateTime = new Date(item.date);
+      } else {
+        // If it's a weekly event, pick the next occurrence
+        const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        const targetDay = dayNames.findIndex(d => item.day?.includes(d));
+        if (targetDay !== -1) {
+          while (startDateTime.getDay() !== targetDay) {
+            startDateTime.setDate(startDateTime.getDate() + 1);
+          }
+        }
+      }
+      
+      let endDateTime = new Date(startDateTime);
+      // Rough parse of time
+      const timeMatch = item.time?.match(/(\d+):(\d+)/);
+      if (timeMatch) {
+         startDateTime.setHours(parseInt(timeMatch[1]), parseInt(timeMatch[2]));
+         endDateTime.setHours(parseInt(timeMatch[1]) + 2, parseInt(timeMatch[2])); // Add 2 hours approx
+      } else {
+         startDateTime.setHours(9, 0);
+         endDateTime.setHours(11, 0);
+      }
+
+      const event = {
+        summary: item.title,
+        location: item.location,
+        start: {
+          dateTime: startDateTime.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+        end: {
+          dateTime: endDateTime.toISOString(),
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        },
+      };
+
+      const res = await fetch("https://www.googleapis.com/calendar/v3/calendars/primary/events", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(event),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to add to calendar");
+      }
+      toast.success("Successfully added to your Google Calendar!");
+    } catch (err: any) {
+       console.error(err);
+       toast.error("Error adding to calendar: " + err.message);
+    }
+  };
+
   const handleSetReminder = async (itemTitle: string) => {
     if (!("Notification" in window)) {
-      alert("This browser does not support notifications.");
+      toast.error("This browser does not support notifications.");
       return;
     }
 
     if (Notification.permission === "granted") {
       new Notification(`Reminder set for ${itemTitle}`);
+      toast.success("Reminder set!");
     } else if (Notification.permission !== "denied") {
       const permission = await Notification.requestPermission();
       if (permission === "granted") {
         new Notification(`Reminder set for ${itemTitle}`);
+        toast.success("Reminder set!");
+      } else {
+        toast.error("Notification permission denied.");
       }
     }
   };
@@ -883,17 +1002,33 @@ export function TimetableView() {
                   </div>
                   <div className="flex items-center gap-3">
                     <MapPin className="w-4 h-4 text-blue-400" />
-                    <span>{item.location}</span>
+                    <ReadableLocation locationStr={item.location} />
                   </div>
                 </div>
                 
-                <div className="mt-4 pt-4 border-t border-gray-50 flex justify-end">
+                <div className="mt-4 pt-4 border-t border-gray-50 flex justify-end gap-2">
+                   {item.location && (
+                     <button 
+                       onClick={(e) => { e.stopPropagation(); window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(item.location)}`, '_blank'); }}
+                       className="flex items-center gap-2 text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-full hover:bg-green-100 transition-colors"
+                     >
+                       <MapPin className="w-3.5 h-3.5" />
+                       Get Directions
+                     </button>
+                   )}
                    <button 
                      onClick={(e) => { e.stopPropagation(); handleSetReminder(item.title); }}
-                     className="flex items-center gap-2 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors"
+                     className="flex items-center gap-2 text-xs font-bold text-gray-600 bg-gray-50 px-3 py-1.5 rounded-full hover:bg-gray-100 transition-colors"
                    >
                      <BellRing className="w-3.5 h-3.5" />
                      Set Reminder
+                   </button>
+                   <button 
+                     onClick={(e) => { e.stopPropagation(); handleSyncToCalendar(item); }}
+                     className="flex items-center gap-2 text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full hover:bg-blue-100 transition-colors"
+                   >
+                     <CalendarIcon className="w-3.5 h-3.5" />
+                     Add to Google Calendar
                    </button>
                 </div>
               </div>
@@ -1586,62 +1721,340 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
   );
 }
 
-export function GalleryView() {
-  const { data } = useAppData();
-  const { galleryImages } = data;
-  const [selectedImage, setSelectedImage] = useState<string | null>(null);
+export function NotesView() {
+  const [localNotes, setLocalNotes] = useState<any[]>(() => {
+    const saved = localStorage.getItem('sermon-notes');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { return []; }
+    }
+    return [];
+  });
+  const [cloudNotes, setCloudNotes] = useState<any[]>([]);
+  const [user, setUser] = useState<any>(null);
+  
+  // Try to restore user preference, default to false
+  const [isCloudMode, setIsCloudMode] = useState(() => {
+    return localStorage.getItem('cloud-sync-preference') === 'true';
+  });
+
+  const [activeNote, setActiveNote] = useState<string | null>(null);
+  const [title, setTitle] = useState('');
+  const [content, setContent] = useState('');
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [isRecordingAudio, setIsRecordingAudio] = useState(false);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem('sermon-notes', JSON.stringify(localNotes));
+  }, [localNotes]);
+  
+  useEffect(() => {
+    localStorage.setItem('cloud-sync-preference', String(isCloudMode));
+  }, [isCloudMode]);
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      if (!currentUser) setIsCloudMode(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (user && isCloudMode) {
+      const q = query(collection(db, `users/${user.uid}/notes`), orderBy('createdAt', 'desc'));
+      const unsub = onSnapshot(q, (snapshot) => {
+        const parsed = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setCloudNotes(parsed);
+      }, (error) => handleFirestoreError(error, OperationType.GET, `users/${user.uid}/notes`));
+      return () => unsub();
+    } else {
+      setCloudNotes([]);
+    }
+  }, [user, isCloudMode]);
+
+  const currentNotes = isCloudMode ? cloudNotes : localNotes;
+
+  const toggleAudioRecording = async () => {
+    if (isRecordingAudio) {
+      mediaRecorderRef.current?.stop();
+      setIsRecordingAudio(false);
+    } else {
+      if (isTranscribing) return;
+      
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        // Request a widely supported mimeType
+        let options = { mimeType: 'audio/webm' };
+        if (!MediaRecorder.isTypeSupported('audio/webm')) {
+          options = { mimeType: 'audio/mp4' }; // Fallback for Safari etc
+        }
+        
+        const mediaRecorder = new MediaRecorder(stream, options);
+        mediaRecorderRef.current = mediaRecorder;
+        audioChunksRef.current = [];
+
+        mediaRecorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            audioChunksRef.current.push(event.data);
+          }
+        };
+
+        mediaRecorder.onstop = async () => {
+          const audioBlob = new Blob(audioChunksRef.current, { type: mediaRecorder.mimeType });
+          audioChunksRef.current = [];
+          
+          setIsTranscribing(true);
+          try {
+            const formData = new FormData();
+            formData.append("audio", audioBlob, "recording");
+
+            const res = await fetch("/api/transcribe", {
+              method: "POST",
+              body: formData,
+            });
+
+            if (!res.ok) {
+              if (res.status === 413) {
+                 throw new Error("Audio file too large. The platform has a 1MB upload limit. Try recording a shorter clip.");
+              }
+              const contentType = res.headers.get("content-type");
+              if (contentType && contentType.includes("application/json")) {
+                let errorData;
+                try {
+                  errorData = await res.json();
+                } catch(e) {
+                  throw new Error(`Server returned status ${res.status} but body was not valid JSON`);
+                }
+                throw new Error(errorData.error || "Failed to transcribe");
+              } else {
+                throw new Error(`Server returned status ${res.status}: ${res.statusText}`);
+              }
+            }
+
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+               const textObj = await res.text();
+               console.error("Invalid response body text:", textObj);
+               throw new Error("Server did not return a valid JSON format. This usually means the API is temporarily unavailable.");
+            }
+
+            const parsedRes = await res.json();
+            const transcription = parsedRes.transcription;
+
+            if (transcription && transcription.trim().length > 0) {
+              setContent(prev => prev + (prev.length > 0 && !prev.endsWith(' ') ? ' ' : '') + transcription.trim());
+            } else {
+              toast.error("No speech was detected or could not be transcribed reliably. Please try speaking a bit louder and closer to the microphone.");
+            }
+          } catch (err: any) {
+            console.error("Transcription error:", err);
+            toast.error(`Transcription failed: ${err.message}. Please try again.`);
+          } finally {
+            setIsTranscribing(false);
+            stream.getTracks().forEach(track => track.stop());
+          }
+        };
+
+        mediaRecorder.start();
+        setIsRecordingAudio(true);
+      } catch (err: any) {
+        console.error("Microphone access error:", err);
+        toast.error("Could not access microphone: " + (err.message || 'Permission denied'));
+      }
+    }
+  };
+
+  const handleAuth = async () => {
+    if (user) {
+      // Toggle cloud mode
+      setIsCloudMode(!isCloudMode);
+    } else {
+      try {
+        await signInWithPopup(auth, googleProvider);
+        setIsCloudMode(true);
+      } catch (e) {
+        console.error("Auth error", e);
+      }
+    }
+  };
+
+  const handleSave = async () => {
+    if (!title.trim() && !content.trim()) {
+      closeEditor();
+      return;
+    }
+    
+    const noteId = activeNote && activeNote !== 'new' ? activeNote : Date.now().toString();
+    const noteData = { 
+       id: noteId,
+       title: title.trim() || 'Untitled Note', 
+       content, 
+       date: new Date().toLocaleDateString(),
+       createdAt: activeNote && activeNote !== 'new' ? (currentNotes.find(n => n.id === activeNote)?.createdAt || Date.now()) : Date.now()
+    };
+
+    if (isCloudMode && user) {
+      try {
+        await setDoc(doc(db, `users/${user.uid}/notes`, noteId), noteData);
+      } catch (e) {
+        console.error("Error saving note to cloud:", e);
+      }
+    } else {
+      if (activeNote && activeNote !== 'new') {
+        setLocalNotes(localNotes.map(n => n.id === noteId ? noteData : n));
+      } else {
+        setLocalNotes([noteData, ...localNotes]);
+      }
+    }
+    closeEditor();
+  };
+
+  const closeEditor = () => {
+    setActiveNote(null);
+    setTitle('');
+    setContent('');
+  };
+
+  const editNote = (note: any) => {
+    setActiveNote(note.id);
+    setTitle(note.title);
+    setContent(note.content);
+  };
+
+  const deleteNote = async (id: string, e: any) => {
+    e.stopPropagation();
+    if (isCloudMode && user) {
+      try {
+        await deleteDoc(doc(db, `users/${user.uid}/notes`, id));
+      } catch (err) {
+         console.error("Error deleting cloud note", err);
+      }
+    } else {
+      setLocalNotes(localNotes.filter(n => n.id !== id));
+    }
+  };
+
+  const createNew = () => {
+    setActiveNote('new');
+    setTitle('');
+    setContent('');
+  };
 
   return (
-    <div className="p-5 flex flex-col gap-6">
-      <div className="text-center mt-3 mb-2">
-        <h2 className="font-extrabold text-3xl text-gray-900 mb-2 tracking-tight">Gallery</h2>
-        <p className="text-gray-500 font-medium text-sm px-4">Moments captured at AFM IN ZIMBABWE - BYO SOUTH Gethsemane Assembly.</p>
-      </div>
-
-      <div className="columns-2 gap-3 space-y-3">
-        {galleryImages.map((img) => (
-          <div 
-            key={img.id} 
-            className="relative rounded-2xl overflow-hidden cursor-pointer group break-inside-avoid shadow-sm"
-            onClick={() => setSelectedImage(img.url)}
-          >
-            <img 
-              src={img.url} 
-              alt={img.title} 
-              className="w-full h-auto object-cover transition-transform duration-500 group-hover:scale-105"
-              referrerPolicy="no-referrer"
-              loading="lazy"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-gray-900/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-            <div className="absolute bottom-0 left-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 w-full">
-               <span className="text-[10px] font-bold text-white bg-blue-600/80 px-2 py-0.5 rounded-full inline-block mb-1">{img.category}</span>
-               <h4 className="text-white text-xs font-bold leading-tight truncate">{img.title}</h4>
+    <div className="p-5 flex flex-col gap-6 h-full min-h-[85vh]">
+      {!activeNote ? (
+        <>
+          <div className="flex flex-col gap-4 mt-3 mb-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="font-extrabold text-3xl text-gray-900 tracking-tight">Notepad</h2>
+                <p className="text-gray-500 font-medium text-sm mt-1">Jot down sermon notes and revelations.</p>
+              </div>
+              <button onClick={createNew} className="w-12 h-12 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 active:scale-95 transition-all shrink-0">
+                 <Plus className="w-6 h-6" />
+              </button>
             </div>
+            
+            <div className="flex bg-gray-100 p-1 rounded-2xl w-full max-w-sm">
+               <button 
+                 onClick={() => setIsCloudMode(false)}
+                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-sm font-bold rounded-xl transition-all ${!isCloudMode ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+               >
+                 <CloudOff className="w-4 h-4" />
+                 Local
+               </button>
+               <button 
+                 onClick={handleAuth}
+                 className={`flex-1 flex items-center justify-center gap-2 py-2 px-3 text-sm font-bold rounded-xl transition-all ${isCloudMode ? 'bg-blue-600 text-white shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+               >
+                 <Cloud className="w-4 h-4" />
+                 Cloud Sync
+               </button>
+            </div>
+            
+            {user && (
+               <div className="flex items-center justify-between text-xs font-medium text-gray-500 px-1">
+                 <span>Logged in as {user.email?.split('@')[0]}</span>
+                 <button onClick={() => signOut(auth)} className="text-gray-400 hover:text-gray-700 flex items-center gap-1">
+                    <LogOut className="w-3 h-3" /> Sign out
+                 </button>
+               </div>
+            )}
           </div>
-        ))}
-      </div>
 
-      {selectedImage && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/90 flex flex-col items-center justify-center p-4 animate-in fade-in duration-200"
-          onClick={() => setSelectedImage(null)}
-        >
-          <button 
-             className="absolute top-6 right-6 w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white hover:bg-white/20 transition-colors backdrop-blur-sm z-50"
-             onClick={() => setSelectedImage(null)}
-          >
-            <X className="w-5 h-5" />
-          </button>
-          
-          <div className="relative max-w-full max-h-[85vh] rounded-lg overflow-hidden flex items-center justify-center">
-            <img 
-              src={selectedImage} 
-              alt="Gallery Fullscreen" 
-              className="max-w-full max-h-[85vh] object-contain"
-              referrerPolicy="no-referrer"
-            />
-          </div>
-          <p className="text-white/60 text-xs font-medium mt-4">Tap anywhere to close</p>
+          {currentNotes.length === 0 ? (
+            <div className="flex-1 flex flex-col items-center justify-center pb-20 text-center opacity-70">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                {isCloudMode ? <Cloud className="w-8 h-8 text-gray-400" /> : <Edit3 className="w-8 h-8 text-gray-400" />}
+              </div>
+              <h3 className="font-bold text-gray-900 text-lg">No {isCloudMode ? 'cloud' : 'local'} notes yet</h3>
+              <p className="text-sm text-gray-500 mt-1 max-w-[200px]">
+                {isCloudMode ? "Create a note to save it to your account sync." : "Tap the + button to create your first note."}
+              </p>
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 pb-8">
+              {currentNotes.map(note => (
+                <div key={note.id} onClick={() => editNote(note)} className="bg-white p-4 rounded-3xl border border-gray-100 shadow-sm cursor-pointer active:scale-[0.98] transition-transform group">
+                   <div className="flex justify-between items-start mb-2">
+                     <h3 className="font-bold text-gray-900 text-[15px] truncate pr-4 leading-tight">{note.title}</h3>
+                     <button onClick={(e) => deleteNote(note.id, e)} className="text-gray-300 hover:text-red-500 p-1 rounded-full bg-gray-50 hover:bg-red-50 transition-colors shrink-0">
+                        <Trash2 className="w-4 h-4" />
+                     </button>
+                   </div>
+                   <p className="text-xs text-gray-500 line-clamp-2 leading-relaxed mb-3 whitespace-pre-wrap">{note.content || "Empty note"}</p>
+                   <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">{note.date}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <div className="flex-1 flex flex-col h-full bg-white fixed inset-0 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
+           <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white shadow-sm ring-1 ring-black/5">
+              <button onClick={handleSave} className="flex items-center bg-gray-100 text-gray-800 rounded-full px-4 py-2 text-sm font-bold active:scale-95 transition-transform">
+                 <ChevronLeft className="w-4 h-4 mr-1" />
+                 Save {isCloudMode ? '(Cloud)' : '(Local)'}
+              </button>
+              <button 
+                onClick={toggleAudioRecording} 
+                disabled={isTranscribing}
+                className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors active:scale-95 ${isRecordingAudio ? 'bg-red-100 text-red-600 animate-pulse' : isTranscribing ? 'bg-blue-100 text-blue-600 animate-pulse' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                 {isRecordingAudio ? <MicOff className="w-5 h-5" /> : isTranscribing ? <Loader2 className="w-5 h-5 animate-spin" /> : <Mic className="w-5 h-5" />}
+              </button>
+           </div>
+           
+           <div className="flex flex-col flex-1 p-5 overflow-y-auto bg-gray-50/30">
+              {isRecordingAudio && (
+                 <div className="mb-4 text-xs font-bold text-red-600 flex items-center gap-2 bg-red-50 p-3 rounded-xl border border-red-100 shadow-sm animate-in fade-in duration-300">
+                  <span className="w-2 h-2 rounded-full border border-red-500 bg-red-500 animate-ping inline-block" />
+                  Recording audio...
+                 </div>
+              )}
+              {isTranscribing && (
+                <div className="mb-4 text-xs font-bold text-blue-600 flex items-center gap-2 bg-blue-50 p-3 rounded-xl border border-blue-100 shadow-sm animate-in fade-in duration-300">
+                  <span className="w-2 h-2 rounded-full border border-blue-500 bg-blue-500 animate-ping inline-block" />
+                  Transcribing your audio... please wait.
+                </div>
+              )}
+              <input
+                 type="text"
+                 value={title}
+                 onChange={e => setTitle(e.target.value)}
+                 placeholder="Note Title"
+                 className="text-2xl font-extrabold text-gray-900 placeholder-gray-300 bg-transparent outline-none mb-4"
+              />
+              <textarea
+                 value={content}
+                 onChange={e => setContent(e.target.value)}
+                 placeholder="Start typing or tap the mic to dictate your notes..."
+                 className="flex-1 w-full text-[15px] leading-loose text-gray-700 placeholder-gray-400 bg-transparent outline-none resize-none pt-2 font-medium"
+              />
+           </div>
         </div>
       )}
     </div>

@@ -5,7 +5,7 @@
 import { useState } from "react";
 import { TabContext } from "./types";
 import { Header, BottomNav, PullToRefresh } from "./components";
-import { HomeView, SermonsView, TimetableView, ConnectView, ProfileView, GalleryView } from "./views";
+import { HomeView, SermonsView, TimetableView, ConnectView, ProfileView, NotesView } from "./views";
 import { PortalView } from "./PortalView";
 import { AppDataProvider, useAppData } from "./context";
 import { Download, X } from "lucide-react";
@@ -48,6 +48,8 @@ function AppUpdateBanner() {
   return null;
 }
 
+import { Toaster, toast } from 'sonner';
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabContext>('home');
 
@@ -58,6 +60,7 @@ export default function App() {
 
   return (
     <AppDataProvider>
+      <Toaster position="top-center" richColors />
       {activeTab === 'portal' ? (
         <div className="min-h-screen bg-gray-50 font-sans">
           <PortalView setActiveTab={setActiveTab} />
@@ -76,7 +79,7 @@ export default function App() {
                 {activeTab === 'timetable' && <TimetableView />}
                 {activeTab === 'profile' && <ProfileView />}
                 {activeTab === 'connect' && <ConnectView />}
-                {activeTab === 'gallery' && <GalleryView />}
+                {activeTab === 'notes' && <NotesView />}
               </div>
             </PullToRefresh>
 
