@@ -2,8 +2,8 @@ import React, { useState, useEffect } from "react";
 import { Megaphone, Quote, Edit3, Settings, Lock, X, Plus, Trash2, Calendar as CalendarIcon, PlayCircle, Image as ImageIcon, Users } from "lucide-react";
 import { useAppData } from "./context";
 import { TabContext } from "./types";
-import { auth, storage } from "./firebase";
-import { GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } from "firebase/auth";
+import { auth, storage, googleSignIn } from "./firebase";
+import { GoogleAuthProvider, signOut, onAuthStateChanged } from "firebase/auth";
 import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from "firebase/storage";
 import { toast } from 'sonner';
 
@@ -25,7 +25,13 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: aiPrompt }),
       });
-      if (!res.ok) throw new Error("Failed to auto-schedule");
+      if (!res.ok) {
+        const textObj = await res.text();
+        if (textObj.includes("Cookie check") || textObj.includes("Action required to load your app")) {
+           throw new Error("Browser security blocked the request. Please click 'Open in New Tab' (the arrow icon in the top right of the preview) to use AI Auto-Scheduling.");
+        }
+        throw new Error("Failed to auto-schedule");
+      }
       const { events } = await res.json();
       for (const ev of events) {
         await handleAddData('upcomingEvents', ev);
@@ -49,8 +55,7 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const provider = new GoogleAuthProvider();
-      await signInWithPopup(auth, provider);
+      await googleSignIn();
       setAuthError('');
     } catch (err: any) {
       setAuthError(err.message || 'Authentication failed');
@@ -114,10 +119,10 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
         }
       } catch (e: any) {
         console.error("Upload failed", e);
-        toast.error("File upload failed: " + (e.message || "Permission denied"));
+        toast.error("File upload failed: " + (e.message || "Permission denied") + ". Make sure Firebase Storage is enabled in the Firebase Console!");
         setUploading(false);
         setUploadProgress(0);
-        return;
+        throw e;
       }
       setUploading(false);
       setUploadProgress(0);
@@ -174,10 +179,10 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
         }
       } catch (e: any) {
         console.error("Upload failed", e);
-        toast.error("File upload failed: " + (e.message || "Permission denied"));
+        toast.error("File upload failed: " + (e.message || "Permission denied") + ". Make sure Firebase Storage is enabled in the Firebase Console!");
         setUploading(false);
         setUploadProgress(0);
-        return;
+        throw e;
       }
       setUploading(false);
       setUploadProgress(0);
@@ -273,12 +278,16 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
              onDelete={(id) => handleDeleteData('announcements', id)}
              fields={[
                { name: 'title', label: 'Title' },
+               { name: 'category', label: 'Department', type: 'select', options: ['General', 'Youth Department', 'Ladies Department', 'Children\'s Department', 'Treasury'] },
                { name: 'message', label: 'Message', isTextArea: true },
                { name: 'date', label: 'Date', type: 'date' },
              ]}
              renderItem={(item) => (
                 <div>
-                   <h4 className="font-bold text-[14px] text-gray-900">{item.title}</h4>
+                   <div className="flex items-center gap-2">
+                     <h4 className="font-bold text-[14px] text-gray-900">{item.title}</h4>
+                     {item.category && <span className="bg-emerald-100 text-emerald-700 text-[10px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full">{item.category}</span>}
+                   </div>
                    <p className="text-[12px] text-gray-600 line-clamp-1">{item.message}</p>
                    <p className="text-[10px] font-bold text-emerald-600 mt-1">{item.date}</p>
                 </div>
@@ -562,6 +571,13 @@ function SectionManager({ title, items, onAdd, onUpdate, onDelete, fields, rende
         setIsAdding(false);
       }
       setFormData({});
+    } catch (e: any) {
+      let msg = e.message || "An error occurred";
+      try {
+        const parsed = JSON.parse(e.message);
+        if (parsed.error) msg = parsed.error;
+      } catch (err) {}
+      toast.error(msg);
     } finally {
       setIsSubmitting(false);
     }
@@ -638,6 +654,18 @@ function SectionManager({ title, items, onAdd, onUpdate, onDelete, fields, rende
                     className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
                   />
                 </div>
+              ) : f.type === 'select' ? (
+                <select
+                  required
+                  value={formData[f.name] || ''}
+                  onChange={(e) => setFormData({ ...formData, [f.name]: e.target.value })}
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl p-2.5 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none"
+                >
+                  <option value="" disabled>Select {f.label}</option>
+                  {f.options?.map((opt: string) => (
+                    <option key={opt} value={opt}>{opt}</option>
+                  ))}
+                </select>
               ) : f.isTextArea ? (
                 <textarea
                   required

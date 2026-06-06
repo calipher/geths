@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { Clock, MapPin, PlayCircle, PauseCircle, Calendar as CalendarIcon, Phone, Mail, Heart, BellRing, X, BookOpen, ChevronRight, ChevronLeft, Smile, Flame, Megaphone, User, Quote, Share2, Users, Edit3, Settings, Lock, Image as ImageIcon, SkipBack, SkipForward, Play, Pause, Trash2, Mic, MicOff, Plus, Cloud, CloudOff, LogOut, Loader2 } from "lucide-react";
 import { useAppData } from "./context";
 import { TabContext } from "./types";
-import { auth, db, googleProvider, handleFirestoreError, OperationType, googleSignInWithToken, getAccessToken } from './firebase';
-import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
+import { auth, db, googleProvider, handleFirestoreError, OperationType, googleSignIn, googleSignInWithToken, getAccessToken } from './firebase';
+import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
 
@@ -367,8 +367,8 @@ Psalm 14
         </div>
       </div>
 
-      {isReadingPlanOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      {isReadingPlanOpen && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl w-full max-w-[400px] h-[70vh] flex flex-col shadow-2xl relative animate-in fade-in zoom-in duration-200">
             <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0">
               <h3 className="font-extrabold text-lg text-gray-900 tracking-tight">Day 144: Psalms 13-15</h3>
@@ -391,11 +391,12 @@ Psalm 14
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
-      {isShareModalOpen && shareImage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      {isShareModalOpen && shareImage && createPortal(
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-white rounded-3xl w-full max-w-[320px] p-5 shadow-2xl relative animate-in fade-in zoom-in duration-200 flex flex-col">
             <button 
               onClick={() => setIsShareModalOpen(false)}
@@ -418,7 +419,8 @@ Psalm 14
               <span className="text-[14px]">Download Image</span>
             </a>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -591,14 +593,17 @@ export function HomeView() {
         </div>
         <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory pt-1 -mx-5 px-5 [&::-webkit-scrollbar]:hidden">
           {announcements.map((announcement) => (
-            <div key={announcement.id} className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex flex-col gap-3 shadow-sm min-w-[260px] max-w-[300px] shrink-0 snap-center">
+            <div key={announcement.id} className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex flex-col gap-3 shadow-sm min-w-[260px] max-w-[300px] shrink-0 snap-center relative">
               <div className="flex items-start gap-3">
                 <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center shrink-0">
                   <Megaphone className="w-5 h-5" />
                 </div>
-                <h4 className="font-bold text-gray-900 text-[14px] leading-tight mt-1 pt-0.5">{announcement.title}</h4>
+                <div className="flex flex-col mt-0.5 w-full">
+                  <h4 className="font-bold text-gray-900 text-[14px] leading-tight pr-2">{announcement.title}</h4>
+                  {announcement.category && <span className="bg-indigo-200 text-indigo-800 text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full mt-1.5 self-start">{announcement.category}</span>}
+                </div>
               </div>
-              <p className="text-gray-700 text-xs leading-relaxed font-medium">{announcement.message}</p>
+              <p className="text-gray-700 text-xs leading-relaxed font-medium mt-1">{announcement.message}</p>
               <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide mt-auto pt-2">{announcement.date}</div>
             </div>
           ))}
@@ -791,8 +796,11 @@ export function SermonsView() {
 export function TimetableView() {
   const { data } = useAppData();
   const { upcomingEvents } = data;
-  const [currentDate, setCurrentDate] = useState(new Date(2026, 4, 1)); // May 2026
-  const [selectedDate, setSelectedDate] = useState<Date | null>(new Date(2026, 4, 30));
+  const [currentDate, setCurrentDate] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [selectedDate, setSelectedDate] = useState<Date | null>(() => new Date());
 
   const handleSyncToCalendar = async (item: any) => {
     try {
@@ -1674,10 +1682,13 @@ export function PortalView({ setActiveTab }: { setActiveTab: (tab: TabContext) =
             {announcements.map((ann, i) => (
               <div key={i} className="flex justify-between items-center group py-2 border-b border-gray-50 last:border-0 hover:bg-gray-50 rounded-lg px-2 transition-colors cursor-pointer">
                 <div>
-                  <h4 className="font-bold text-[14px] text-gray-900">{ann.title}</h4>
-                  <p className="text-[11px] font-medium text-gray-500">{ann.date}</p>
+                  <h4 className="font-bold text-[14px] text-gray-900 leading-tight">
+                    {ann.title}
+                    {ann.category && <span className="ml-2 bg-emerald-100 text-emerald-700 text-[9px] uppercase tracking-wider font-extrabold px-1.5 py-0.5 rounded-full inline-block align-middle">{ann.category}</span>}
+                  </h4>
+                  <p className="text-[11px] font-medium text-gray-500 mt-0.5">{ann.date}</p>
                 </div>
-                <button className="p-2 text-gray-400 group-hover:text-emerald-600 transition-colors rounded-full hover:bg-emerald-50">
+                <button className="p-2 text-gray-400 group-hover:text-emerald-600 transition-colors rounded-full hover:bg-emerald-50 shrink-0">
                   <Edit3 className="w-4 h-4" />
                 </button>
               </div>
@@ -1838,6 +1849,9 @@ export function NotesView() {
             if (!contentType || !contentType.includes("application/json")) {
                const textObj = await res.text();
                console.error("Invalid response body text:", textObj);
+               if (textObj.includes("Cookie check") || textObj.includes("Action required to load your app")) {
+                 throw new Error("Browser security blocked the request. Please click 'Open in New Tab' (the arrow icon in the top right of the preview) to use the dictation feature.");
+               }
                throw new Error("Server did not return a valid JSON format. This usually means the API is temporarily unavailable.");
             }
 
@@ -1873,10 +1887,11 @@ export function NotesView() {
       setIsCloudMode(!isCloudMode);
     } else {
       try {
-        await signInWithPopup(auth, googleProvider);
+        await googleSignIn();
         setIsCloudMode(true);
-      } catch (e) {
+      } catch (e: any) {
         console.error("Auth error", e);
+        toast.error(e.message || "Authentication failed");
       }
     }
   };
@@ -1953,9 +1968,6 @@ export function NotesView() {
                 <h2 className="font-extrabold text-3xl text-gray-900 tracking-tight">Notepad</h2>
                 <p className="text-gray-500 font-medium text-sm mt-1">Jot down sermon notes and revelations.</p>
               </div>
-              <button onClick={createNew} className="w-12 h-12 bg-blue-600 text-white rounded-full shadow-lg flex items-center justify-center hover:bg-blue-700 active:scale-95 transition-all shrink-0">
-                 <Plus className="w-6 h-6" />
-              </button>
             </div>
             
             <div className="flex bg-gray-100 p-1 rounded-2xl w-full max-w-sm">
@@ -2011,14 +2023,51 @@ export function NotesView() {
               ))}
             </div>
           )}
+          <button onClick={createNew} className="fixed bottom-24 right-5 w-14 h-14 bg-blue-600 text-white rounded-full shadow-[0_8px_16px_rgba(37,99,235,0.25)] flex items-center justify-center hover:bg-blue-700 active:scale-95 transition-all z-40">
+             <Plus className="w-7 h-7" />
+          </button>
         </>
       ) : (
         <div className="flex-1 flex flex-col h-full bg-white fixed inset-0 z-50 animate-in fade-in slide-in-from-bottom-4 duration-300">
-           <div className="flex items-center justify-between p-4 border-b border-gray-100 bg-white shadow-sm ring-1 ring-black/5">
-              <button onClick={handleSave} className="flex items-center bg-gray-100 text-gray-800 rounded-full px-4 py-2 text-sm font-bold active:scale-95 transition-transform">
-                 <ChevronLeft className="w-4 h-4 mr-1" />
-                 Save {isCloudMode ? '(Cloud)' : '(Local)'}
-              </button>
+           <div className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border-b border-gray-100 bg-white shadow-sm ring-1 ring-black/5 gap-3">
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                <button onClick={handleSave} className="flex shrink-0 items-center bg-gray-100 text-gray-800 rounded-full px-4 py-2 text-sm font-bold active:scale-95 transition-transform">
+                   <ChevronLeft className="w-4 h-4 mr-1" />
+                   Save {isCloudMode && user ? '(Cloud)' : '(Local)'}
+                </button>
+                {(!isCloudMode || !user) && (
+                  <button onClick={async () => {
+                     let currentUser = user;
+                     if (!currentUser) {
+                        try {
+                           const res = await googleSignIn();
+                           currentUser = res.user;
+                        } catch(e: any) { 
+                           toast.error(e.message || "Auth error");
+                           return; 
+                        }
+                     }
+                     setIsCloudMode(true);
+                     if (title.trim() || content.trim()) {
+                        const noteId = activeNote && activeNote !== 'new' ? activeNote : Date.now().toString();
+                        const noteData = { 
+                           id: noteId,
+                           title: title.trim() || 'Untitled Note', 
+                           content, 
+                           date: new Date().toLocaleDateString(),
+                           createdAt: activeNote && activeNote !== 'new' ? (currentNotes.find(n => n.id === activeNote)?.createdAt || Date.now()) : Date.now()
+                        };
+                        try {
+                           await setDoc(doc(db, `users/${currentUser.uid}/notes`, noteId), noteData);
+                           closeEditor();
+                        } catch(e) {}
+                     }
+                  }} className="flex shrink-0 items-center bg-blue-50 text-blue-600 border border-blue-200 rounded-full px-3 py-2 text-xs font-bold active:scale-95 transition-transform">
+                    <Cloud className="w-4 h-4 mr-1" />
+                    Save on Cloud
+                  </button>
+                )}
+              </div>
               <button 
                 onClick={toggleAudioRecording} 
                 disabled={isTranscribing}

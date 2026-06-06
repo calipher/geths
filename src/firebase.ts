@@ -1,11 +1,21 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer } from 'firebase/firestore';
+import { getFirestore, enableIndexedDbPersistence, doc, getDocFromServer } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
-export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
+export const db = getFirestore(app, (firebaseConfig as any).firestoreDatabaseId);
+
+enableIndexedDbPersistence(db).catch((err) => {
+  if (err.code == 'failed-precondition') {
+    // Multiple tabs open, persistence can only be enabled in one tab at a a time.
+    console.warn("Firestore persistence failed: Multiple tabs open");
+  } else if (err.code == 'unimplemented') {
+    // The current browser does not support all of the features required to enable persistence
+    console.warn("Firestore persistence failed: Unsupported browser");
+  }
+});
 export const auth = getAuth();
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('https://www.googleapis.com/auth/calendar.events');
@@ -14,19 +24,32 @@ let cachedAccessToken: string | null = null;
 
 import { signInWithPopup } from 'firebase/auth';
 
-export const googleSignInWithToken = async () => {
+export const googleSignIn = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
     const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error('Failed to get access token from Firebase Auth');
+    if (credential?.accessToken) {
+      cachedAccessToken = credential.accessToken;
     }
-    cachedAccessToken = credential.accessToken;
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error) {
+    return result;
+  } catch (error: any) {
     console.error('Sign in error:', error);
+    if (error.code === 'auth/popup-blocked' || error.message?.toLowerCase().includes('popup')) {
+       throw new Error("Popup blocked. Please open this app in your device's native browser (Safari/Chrome).");
+    }
+    if (error.code === 'auth/invalid-action-code' || (error.message && error.message.toLowerCase().includes('requested action is invalid'))) {
+       throw new Error("Your browser security or webview blocked the login popup. Please tap 'Open in browser' or use Safari/Chrome.");
+    }
+    if (error.code === 'auth/unauthorized-domain') {
+       throw new Error("Domain unauthorized. Please ensure this app URL is added to Firebase Auth Authorized Domains.");
+    }
     throw error;
   }
+};
+
+export const googleSignInWithToken = async () => {
+  const result = await googleSignIn();
+  return { user: result.user, accessToken: cachedAccessToken };
 };
 
 export const getAccessToken = async (): Promise<string | null> => {
