@@ -2,13 +2,14 @@
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { TabContext } from "./types";
 import { Header, BottomNav, PullToRefresh } from "./components";
 import { HomeView, SermonsView, TimetableView, ConnectView, ProfileView, NotesView } from "./views";
 import { PortalView } from "./PortalView";
 import { AppDataProvider, useAppData } from "./context";
 import { Download, X } from "lucide-react";
+import { handleAuthRedirect } from "./firebase";
 
 const CURRENT_VERSION = '1.0.0';
 
@@ -52,6 +53,10 @@ import { Toaster, toast } from 'sonner';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabContext>('home');
+
+  useEffect(() => {
+    handleAuthRedirect();
+  }, []);
 
   const handleRefresh = async () => {
     // Simulate a network request delay since Firebase handles real-time updates automatically

@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getAuth, GoogleAuthProvider, signInWithPopup, signInWithRedirect, getRedirectResult } from 'firebase/auth';
 import { getFirestore, enableIndexedDbPersistence, doc, getDocFromServer, setDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
@@ -56,6 +56,20 @@ if (messaging) {
   });
 }
 
+export const handleAuthRedirect = async () => {
+  try {
+    const result = await getRedirectResult(auth);
+    if (result) {
+      const credential = GoogleAuthProvider.credentialFromResult(result);
+      if (credential?.accessToken) {
+        cachedAccessToken = credential.accessToken;
+      }
+    }
+  } catch (error) {
+    console.error("Redirect auth error:", error);
+  }
+};
+
 export const googleSignIn = async () => {
   try {
     const result = await signInWithPopup(auth, googleProvider);
@@ -66,15 +80,28 @@ export const googleSignIn = async () => {
     return result;
   } catch (error: any) {
     console.error('Sign in error:', error);
-    if (error.code === 'auth/popup-blocked' || error.message?.toLowerCase().includes('popup')) {
-       throw new Error("Popup blocked. Please open this app in your device's native browser (Safari/Chrome).");
+    
+    // Automatically try redirect if popup is blocked
+    if (
+      error.code === 'auth/popup-blocked' || 
+      error.code === 'auth/invalid-action-code' || 
+      (error.message && error.message.toLowerCase().includes('popup')) ||
+      (error.message && error.message.toLowerCase().includes('requested action is invalid'))
+    ) {
+       console.log("Popup blocked or invalid action in wrapper. Attempting redirect...");
+       await signInWithRedirect(auth, googleProvider);
+       throw new Error("Redirecting to login...");
     }
-    if (error.code === 'auth/invalid-action-code' || (error.message && error.message.toLowerCase().includes('requested action is invalid'))) {
-       throw new Error("Your browser security or webview blocked the login popup. Please tap 'Open in browser' or use Safari/Chrome.");
-    }
+    
     if (error.code === 'auth/unauthorized-domain') {
        throw new Error("Domain unauthorized. Please ensure this app URL is added to Firebase Auth Authorized Domains.");
     }
+    
+    // Check if it's the 403 disallowed_useragent from Webview
+    if (error.code === 'auth/web-storage-unsupported' || String(error).includes('disallowed_useragent')) {
+       throw new Error("Google Login is blocked inside this app wrapper. Please open this app in Chrome/Safari to log in.");
+    }
+
     throw error;
   }
 };

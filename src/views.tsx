@@ -436,7 +436,7 @@ function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () 
   useEffect(() => {
     if (isOpen && !kjvBible && !isLoading) {
       setIsLoading(true);
-      fetch('/kjv.json')
+      fetch('./kjv.json')
         .then(res => res.json())
         .then(data => {
           setKjvBible(data);
