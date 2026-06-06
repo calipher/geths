@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider } from 'firebase/auth';
-import { getFirestore, enableIndexedDbPersistence, doc, getDocFromServer } from 'firebase/firestore';
+import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { getFirestore, enableIndexedDbPersistence, doc, getDocFromServer, setDoc } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
+import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
@@ -22,7 +23,38 @@ googleProvider.addScope('https://www.googleapis.com/auth/calendar.events');
 
 let cachedAccessToken: string | null = null;
 
-import { signInWithPopup } from 'firebase/auth';
+export const messaging = typeof window !== 'undefined' && 'Notification' in window ? getMessaging(app) : null;
+
+// Call this to setup FCM for the user. We save their token in Firestore.
+export const setupFCM = async (userId: string) => {
+  if (!messaging) return;
+  try {
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted') {
+      // In a real app we need a vapid key. If missing, it uses default project key unless blocked.
+      const token = await getToken(messaging, {
+        // vapidKey: String(import.meta.env.VITE_VAPID_KEY) || undefined 
+      });
+      if (token) {
+        console.log("FCM Token:", token);
+        await setDoc(doc(db, 'fcmTokens', token), {
+          token,
+          userId,
+          updatedAt: Date.now()
+        }, { merge: true });
+      }
+    }
+  } catch (error) {
+    console.error("FCM Setup failed:", error);
+  }
+};
+
+if (messaging) {
+  onMessage(messaging, (payload) => {
+    console.log('Message received. ', payload);
+    // You could show a toast or local notification here.
+  });
+}
 
 export const googleSignIn = async () => {
   try {

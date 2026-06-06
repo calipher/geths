@@ -3,6 +3,26 @@ import path from "path";
 import multer from "multer";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI } from "@google/genai";
+import * as admin from "firebase-admin";
+
+// Initialize Firebase Admin if Service Account is provided
+let firebaseAdminApp: admin.app.App | null = null;
+try {
+  let credential;
+  if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY);
+    credential = admin.credential.cert(serviceAccount);
+  } else {
+    // Attempt ADC
+    credential = admin.credential.applicationDefault();
+  }
+  
+  const projectId = "gen-lang-client-0961167103";
+  firebaseAdminApp = admin.initializeApp({ credential, projectId });
+  console.log("Firebase Admin initialized");
+} catch (e) {
+  console.log("Firebase Admin initialization skipped or failed:", e);
+}
 
 async function startServer() {
   const app = express();
@@ -12,6 +32,41 @@ async function startServer() {
   const upload = multer({ storage: multer.memoryStorage() });
 
   app.use(express.json());
+
+  app.post("/api/notify", async (req, res) => {
+    try {
+      if (!firebaseAdminApp) {
+         return res.status(500).json({ error: "Firebase Admin is not configured. Provide FIREBASE_SERVICE_ACCOUNT_KEY." });
+      }
+      
+      const { title, body, topic, tokens } = req.body;
+      
+      if (topic) {
+         const response = await firebaseAdminApp.messaging().send({
+            topic,
+            notification: { title, body },
+            webpush: {
+               fcmOptions: { link: '/' }
+            }
+         });
+         return res.json({ success: true, messageId: response });
+      } else if (tokens && tokens.length > 0) {
+         const response = await firebaseAdminApp.messaging().sendEachForMulticast({
+            tokens,
+            notification: { title, body },
+            webpush: {
+               fcmOptions: { link: '/' }
+            }
+         });
+         return res.json({ success: true, response });
+      } else {
+         return res.status(400).json({ error: "Provide topic or tokens array" });
+      }
+    } catch (err: any) {
+      console.error("FCM Notify error:", err);
+      res.status(500).json({ error: err.message });
+    }
+  });
 
   app.post("/api/schedule", async (req, res) => {
     try {

@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import { Clock, MapPin, PlayCircle, PauseCircle, Calendar as CalendarIcon, Phone, Mail, Heart, BellRing, X, BookOpen, ChevronRight, ChevronLeft, Smile, Flame, Megaphone, User, Quote, Share2, Users, Edit3, Settings, Lock, Image as ImageIcon, SkipBack, SkipForward, Play, Pause, Trash2, Mic, MicOff, Plus, Cloud, CloudOff, LogOut, Loader2 } from "lucide-react";
 import { useAppData } from "./context";
 import { TabContext } from "./types";
-import { auth, db, googleProvider, handleFirestoreError, OperationType, googleSignIn, googleSignInWithToken, getAccessToken } from './firebase';
+import { auth, db, googleProvider, handleFirestoreError, OperationType, googleSignIn, googleSignInWithToken, getAccessToken, setupFCM } from './firebase';
 import { signOut, onAuthStateChanged } from 'firebase/auth';
 import { collection, query, orderBy, onSnapshot, doc, setDoc, deleteDoc } from 'firebase/firestore';
 import { toast } from 'sonner';
@@ -1441,7 +1441,15 @@ export function ConnectView() {
               </div>
             </div>
             <button
-              onClick={() => setNotifications(!notifications)}
+              onClick={async () => {
+                const newValue = !notifications;
+                setNotifications(newValue);
+                localStorage.setItem('afm_notifications', newValue ? 'true' : 'false');
+                if (newValue) {
+                  await setupFCM(auth.currentUser?.uid || 'anonymous');
+                  toast.success("Push notifications enabled!");
+                }
+              }}
               className={`relative inline-flex h-7 w-[3.25rem] flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${notifications ? 'bg-blue-600' : 'bg-gray-200'}`}
             >
               <span
