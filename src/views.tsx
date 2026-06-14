@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Clock, MapPin, PlayCircle, PauseCircle, Calendar as CalendarIcon, Phone, Mail, Heart, BellRing, X, BookOpen, ChevronRight, ChevronLeft, Smile, Flame, Megaphone, User, Quote, Share2, Users, Edit3, Settings, Lock, Image as ImageIcon, SkipBack, SkipForward, Play, Pause, Trash2, Mic, MicOff, Plus, Cloud, CloudOff, LogOut, Loader2 } from "lucide-react";
+import { Clock, MapPin, PlayCircle, PauseCircle, Calendar as CalendarIcon, Phone, Mail, Heart, BellRing, X, BookOpen, ChevronRight, ChevronLeft, Smile, Flame, Megaphone, User, Quote, Share2, Users, Edit3, Settings, Lock, Image as ImageIcon, SkipBack, SkipForward, Play, Pause, Trash2, Mic, MicOff, Plus, Cloud, CloudOff, LogOut, Loader2, Search } from "lucide-react";
 import { useAppData } from "./context";
 import { TabContext } from "./types";
 import { auth, db, googleProvider, handleFirestoreError, OperationType, googleSignIn, googleSignInWithToken, getAccessToken, setupFCM } from './firebase';
@@ -426,18 +426,40 @@ Psalm 14
   );
 }
 
+let cachedBibleData: any[] | null = null;
+let fetchBiblePromise: Promise<any[]> | null = null;
+
+function loadBibleData() {
+  if (cachedBibleData) return Promise.resolve(cachedBibleData);
+  if (fetchBiblePromise) return fetchBiblePromise;
+  
+  fetchBiblePromise = fetch('./kjv.json?v=3')
+    .then(res => res.json())
+    .then(data => {
+      cachedBibleData = data;
+      return data;
+    });
+  return fetchBiblePromise;
+}
+
+// Eagerly prefetch bible data in the background after a short delay to not block initial render
+setTimeout(() => {
+  loadBibleData().catch(console.error);
+}, 2000);
+
 function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [kjvBible, setKjvBible] = useState<any[] | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [kjvBible, setKjvBible] = useState<any[] | null>(cachedBibleData);
+  const [isLoading, setIsLoading] = useState(!cachedBibleData);
   const [error, setError] = useState(false);
   const [selectedBookIndex, setSelectedBookIndex] = useState(0);
   const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
 
   useEffect(() => {
-    if (isOpen && !kjvBible && !isLoading) {
+    // Start prefetching if not opened yet, but with low priority, or just when opened?
+    // We already fetch when opened, but let's just make it fetch using the loadBibleData function.
+    if (isOpen && !kjvBible) {
       setIsLoading(true);
-      fetch('./kjv.json')
-        .then(res => res.json())
+      loadBibleData()
         .then(data => {
           setKjvBible(data);
           setIsLoading(false);
@@ -448,7 +470,8 @@ function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () 
           setIsLoading(false);
         });
     }
-  }, [isOpen, kjvBible, isLoading]);
+  }, [isOpen, kjvBible]);
+
 
   if (!isOpen) return null;
   
@@ -553,14 +576,174 @@ function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () 
   );
 }
 
+let cachedHymnsData: any[] | null = null;
+let fetchHymnsPromise: Promise<any[]> | null = null;
+
+function loadHymnsData() {
+  if (cachedHymnsData) return Promise.resolve(cachedHymnsData);
+  if (fetchHymnsPromise) return fetchHymnsPromise;
+  
+  fetchHymnsPromise = fetch('./hymns.json?v=2')
+    .then(res => res.json())
+    .then(data => {
+      cachedHymnsData = data;
+      return data;
+    });
+  return fetchHymnsPromise;
+}
+
+setTimeout(() => {
+  loadHymnsData().catch(console.error);
+}, 3000);
+
+function DigitalHymnal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [hymns, setHymns] = useState<any[] | null>(cachedHymnsData);
+  const [isLoading, setIsLoading] = useState(!cachedHymnsData);
+  const [error, setError] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedHymn, setSelectedHymn] = useState<any | null>(null);
+
+  useEffect(() => {
+    if (isOpen && !hymns) {
+      setIsLoading(true);
+      loadHymnsData()
+        .then(data => {
+          setHymns(data);
+          setIsLoading(false);
+        })
+        .catch(err => {
+          console.error(err);
+          setError(true);
+          setIsLoading(false);
+        });
+    }
+  }, [isOpen, hymns]);
+
+  if (!isOpen) return null;
+
+  if (isLoading) {
+    return createPortal(
+       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+         <div className="bg-white p-6 rounded-3xl text-gray-900 shadow-2xl flex flex-col items-center gap-3">
+           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+           <div className="font-bold">Loading Hymnal...</div>
+         </div>
+       </div>,
+       document.body
+    );
+  }
+
+  if (error || !hymns || !Array.isArray(hymns)) {
+    return createPortal(
+       <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+         <div className="bg-white p-6 rounded-3xl font-bold text-gray-900 flex flex-col items-center shadow-2xl">
+            <p className="mb-4">Error loading hymnal data.</p>
+            <button onClick={onClose} className="px-5 py-2 bg-blue-600 text-white rounded-xl active:scale-95 transition-transform">Close</button>
+         </div>
+       </div>,
+       document.body
+    );
+  }
+
+  const filteredHymns = hymns.filter(h => 
+    h.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    h.id.toString().includes(searchQuery)
+  );
+
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl w-full max-w-[500px] h-[80vh] flex flex-col shadow-2xl relative animate-in fade-in zoom-in duration-200 overflow-hidden">
+        <div className="p-4 border-b border-gray-100 flex items-center justify-between shrink-0 bg-blue-600 text-white">
+          <div className="flex items-center gap-3">
+             <BookOpen className="w-5 h-5 text-blue-100" />
+             <h2 className="font-extrabold text-lg">Digital Hymnal</h2>
+          </div>
+          <button 
+            onClick={onClose}
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 active:scale-95 transition-all text-white"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {!selectedHymn ? (
+          <>
+            <div className="p-3 border-b border-gray-100 bg-gray-50 shrink-0">
+               <div className="relative">
+                 <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                 <input 
+                   type="text" 
+                   value={searchQuery}
+                   onChange={(e) => setSearchQuery(e.target.value)}
+                   placeholder="Search by number or title..."
+                   className="w-full bg-white border border-gray-200 rounded-xl py-3 pl-10 pr-4 text-sm font-bold text-gray-900 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100 transition-all placeholder:font-medium placeholder:text-gray-400"
+                 />
+               </div>
+            </div>
+            <div className="flex-1 overflow-y-auto p-2">
+               {filteredHymns.length === 0 ? (
+                  <div className="p-10 text-center text-gray-500 font-bold">No hymns found.</div>
+               ) : (
+                  <div className="flex flex-col gap-1">
+                    {filteredHymns.map(h => (
+                       <button
+                         key={h.id}
+                         onClick={() => setSelectedHymn(h)}
+                         className="flex items-center gap-4 p-3 rounded-xl hover:bg-blue-50 active:scale-[0.98] transition-all text-left"
+                       >
+                          <div className="w-10 h-10 shrink-0 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-extrabold text-sm">
+                             {h.id}
+                          </div>
+                          <div className="font-bold text-gray-900 text-sm leading-tight">
+                             {h.title}
+                          </div>
+                       </button>
+                    ))}
+                  </div>
+               )}
+            </div>
+          </>
+        ) : (
+          <div className="flex flex-col h-full bg-amber-50/30">
+            <div className="flex border-b border-gray-100 bg-white shrink-0 shadow-sm relative z-10">
+               <button 
+                 className="flex-1 p-3 text-sm font-bold text-gray-900 flex items-center justify-center gap-2 hover:bg-gray-50 active:bg-gray-100 transition-colors"
+                 onClick={() => setSelectedHymn(null)}
+               >
+                 <ChevronLeft className="w-5 h-5 text-gray-500" />
+                 Back to Index
+               </button>
+            </div>
+            
+            <div className="flex-1 overflow-y-auto p-6" style={{ scrollBehavior: 'smooth' }}>
+               <div className="max-w-prose mx-auto">
+                 <h3 className="font-extrabold text-2xl text-gray-900 text-center tracking-tight mb-2">
+                   {selectedHymn.id}. {selectedHymn.title}
+                 </h3>
+                 <div className="w-12 h-1 bg-blue-500 mx-auto rounded-full mb-8 opacity-20"></div>
+                 <div className="whitespace-pre-wrap font-medium text-gray-800 text-[17px] leading-relaxed text-center font-serif">
+                   {selectedHymn.lyrics}
+                 </div>
+               </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 export function HomeView() {
   const { data } = useAppData();
   const { announcements } = data;
   const [isOfflineBibleOpen, setIsOfflineBibleOpen] = useState(false);
+  const [isDigitalHymnalOpen, setIsDigitalHymnalOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-5 p-5 antialiased">
       <OfflineBibleReader isOpen={isOfflineBibleOpen} onClose={() => setIsOfflineBibleOpen(false)} />
+      <DigitalHymnal isOpen={isDigitalHymnalOpen} onClose={() => setIsDigitalHymnalOpen(false)} />
       <div className="bg-blue-800 text-white rounded-3xl p-6 shadow-xl relative overflow-hidden">
         {/* Abstract shape for background depth */}
         <div className="absolute top-0 right-0 opacity-10">
@@ -635,7 +818,10 @@ export function HomeView() {
             </div>
           </button>
 
-          <a href="#" className="bg-blue-50 border border-blue-100 rounded-3xl p-4 shadow-sm flex items-center justify-between active:scale-95 transition-transform hover:shadow-md cursor-pointer group">
+          <button 
+            onClick={() => setIsDigitalHymnalOpen(true)}
+            className="w-full text-left bg-blue-50 border border-blue-100 rounded-3xl p-4 shadow-sm flex items-center justify-between active:scale-95 transition-transform hover:shadow-md cursor-pointer group"
+          >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center flex-shrink-0 shadow-inner group-hover:scale-105 transition-transform">
                 <BookOpen className="w-6 h-6" />
@@ -648,7 +834,7 @@ export function HomeView() {
             <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center shadow-sm shrink-0">
               <ChevronRight className="w-4 h-4 text-blue-600" />
             </div>
-          </a>
+          </button>
         </div>
       </div>
     </div>
@@ -1904,6 +2090,46 @@ export function NotesView() {
     }
   };
 
+  // Autosave effect
+  useEffect(() => {
+    if (!activeNote || (!title.trim() && !content.trim())) return;
+
+    const timer = setTimeout(async () => {
+      const noteId = activeNote === 'new' ? Date.now().toString() : activeNote;
+      if (activeNote === 'new') {
+        setActiveNote(noteId);
+      }
+      
+      const noteData = { 
+         id: noteId,
+         title: title.trim() || 'Untitled Note', 
+         content, 
+         date: new Date().toLocaleDateString(),
+         updatedAt: Date.now()
+      };
+
+      if (isCloudMode && user) {
+        try {
+          await setDoc(doc(db, `users/${user.uid}/notes`, noteId), noteData, { merge: true });
+        } catch (e) {
+          console.error("Error autosaving note to cloud:", e);
+        }
+      } else {
+        setLocalNotes(prev => {
+          const existing = prev.find(n => n.id === noteId);
+          const finalData = existing ? { ...existing, ...noteData } : { ...noteData, createdAt: Date.now() };
+          if (existing) {
+            return prev.map(n => n.id === noteId ? finalData : n);
+          } else {
+            return [finalData, ...prev];
+          }
+        });
+      }
+    }, 1000);
+
+    return () => clearTimeout(timer);
+  }, [title, content, activeNote, isCloudMode, user]);
+
   const handleSave = async () => {
     if (!title.trim() && !content.trim()) {
       closeEditor();
@@ -1916,21 +2142,25 @@ export function NotesView() {
        title: title.trim() || 'Untitled Note', 
        content, 
        date: new Date().toLocaleDateString(),
-       createdAt: activeNote && activeNote !== 'new' ? (currentNotes.find(n => n.id === activeNote)?.createdAt || Date.now()) : Date.now()
+       updatedAt: Date.now()
     };
 
     if (isCloudMode && user) {
       try {
-        await setDoc(doc(db, `users/${user.uid}/notes`, noteId), noteData);
+        await setDoc(doc(db, `users/${user.uid}/notes`, noteId), noteData, { merge: true });
       } catch (e) {
         console.error("Error saving note to cloud:", e);
       }
     } else {
-      if (activeNote && activeNote !== 'new') {
-        setLocalNotes(localNotes.map(n => n.id === noteId ? noteData : n));
-      } else {
-        setLocalNotes([noteData, ...localNotes]);
-      }
+      setLocalNotes(prev => {
+        const existing = prev.find(n => n.id === noteId);
+        const finalData = existing ? { ...existing, ...noteData } : { ...noteData, createdAt: Date.now() };
+        if (existing) {
+          return prev.map(n => n.id === noteId ? finalData : n);
+        } else {
+          return [finalData, ...prev];
+        }
+      });
     }
     closeEditor();
   };
@@ -2098,19 +2328,28 @@ export function NotesView() {
                   Transcribing your audio... please wait.
                 </div>
               )}
-              <input
-                 type="text"
-                 value={title}
-                 onChange={e => setTitle(e.target.value)}
-                 placeholder="Note Title"
-                 className="text-2xl font-extrabold text-gray-900 placeholder-gray-300 bg-transparent outline-none mb-4"
-              />
-              <textarea
-                 value={content}
-                 onChange={e => setContent(e.target.value)}
-                 placeholder="Start typing or tap the mic to dictate your notes..."
-                 className="flex-1 w-full text-[15px] leading-loose text-gray-700 placeholder-gray-400 bg-transparent outline-none resize-none pt-2 font-medium"
-              />
+              <div className="mb-5 flex flex-col gap-2">
+                 <label htmlFor="noteTitle" className="text-xs font-black text-gray-500 uppercase tracking-widest pl-1">Message Title</label>
+                 <input
+                    id="noteTitle"
+                    type="text"
+                    value={title}
+                    onChange={e => setTitle(e.target.value)}
+                    placeholder="e.g. Sunday Service - The Power of Faith"
+                    className="w-full text-[17px] font-extrabold text-gray-900 placeholder-gray-400 bg-white border border-gray-200 rounded-2xl px-4 py-3.5 outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow shadow-sm"
+                 />
+              </div>
+              
+              <div className="flex-1 flex flex-col gap-2 relative">
+                 <label htmlFor="noteContent" className="text-xs font-black text-gray-500 uppercase tracking-widest pl-1">Notes & Revelations</label>
+                 <textarea
+                    id="noteContent"
+                    value={content}
+                    onChange={e => setContent(e.target.value)}
+                    placeholder="Start typing or tap the mic to dictate your notes..."
+                    className="flex-1 w-full text-[16px] leading-[1.8] text-gray-800 placeholder-gray-400 bg-white border border-gray-200 rounded-2xl p-4 outline-none resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow shadow-sm font-medium"
+                 />
+              </div>
            </div>
         </div>
       )}
