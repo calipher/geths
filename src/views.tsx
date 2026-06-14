@@ -437,11 +437,10 @@ function loadBibleData() {
   if (cachedBibleData) return Promise.resolve(cachedBibleData);
   if (fetchBiblePromise) return fetchBiblePromise;
   
-  fetchBiblePromise = fetch(`${import.meta.env.BASE_URL}kjv.json?v=3`)
-    .then(res => res.json())
-    .then(data => {
-      cachedBibleData = data;
-      return data;
+  fetchBiblePromise = import('../public/kjv.json')
+    .then((mod: any) => {
+      cachedBibleData = mod.default;
+      return mod.default;
     });
   return fetchBiblePromise;
 }
@@ -450,11 +449,10 @@ function loadNdBibleData() {
   if (cachedNdBibleData) return Promise.resolve(cachedNdBibleData);
   if (fetchNdBiblePromise) return fetchNdBiblePromise;
   
-  fetchNdBiblePromise = fetch(`${import.meta.env.BASE_URL}ndebele_bible.json?v=1`)
-    .then(res => res.json())
-    .then(data => {
-      cachedNdBibleData = data;
-      return data;
+  fetchNdBiblePromise = import('../public/ndebele_bible.json')
+    .then((mod: any) => {
+      cachedNdBibleData = mod.default;
+      return mod.default;
     });
   return fetchNdBiblePromise;
 }
@@ -463,11 +461,10 @@ function loadSnBibleData() {
   if (cachedSnBibleData) return Promise.resolve(cachedSnBibleData);
   if (fetchSnBiblePromise) return fetchSnBiblePromise;
   
-  fetchSnBiblePromise = fetch(`${import.meta.env.BASE_URL}shona_bible.json?v=1`)
-    .then(res => res.json())
-    .then(data => {
-      cachedSnBibleData = data;
-      return data;
+  fetchSnBiblePromise = import('../public/shona_bible.json')
+    .then((mod: any) => {
+      cachedSnBibleData = mod.default;
+      return mod.default;
     });
   return fetchSnBiblePromise;
 }
@@ -642,11 +639,10 @@ function loadHymnsData() {
   if (cachedHymnsData) return Promise.resolve(cachedHymnsData);
   if (fetchHymnsPromise) return fetchHymnsPromise;
   
-  fetchHymnsPromise = fetch(`${import.meta.env.BASE_URL}hymns.json?v=2`)
-    .then(res => res.json())
-    .then(data => {
-      cachedHymnsData = data;
-      return data;
+  fetchHymnsPromise = import('../public/hymns.json')
+    .then((mod: any) => {
+      cachedHymnsData = mod.default;
+      return mod.default;
     });
   return fetchHymnsPromise;
 }
@@ -655,11 +651,10 @@ function loadShonaHymnsData() {
   if (cachedShonaHymnsData) return Promise.resolve(cachedShonaHymnsData);
   if (fetchShonaHymnsPromise) return fetchShonaHymnsPromise;
   
-  fetchShonaHymnsPromise = fetch(`${import.meta.env.BASE_URL}shona_hymns.json`)
-    .then(res => res.json())
-    .then(data => {
-      cachedShonaHymnsData = data;
-      return data;
+  fetchShonaHymnsPromise = import('../public/shona_hymns.json')
+    .then((mod: any) => {
+      cachedShonaHymnsData = mod.default;
+      return mod.default;
     });
   return fetchShonaHymnsPromise;
 }
@@ -2161,7 +2156,11 @@ export function NotesView() {
         setIsRecordingAudio(true);
       } catch (err: any) {
         console.error("Microphone access error:", err);
-        toast.error("Could not access microphone: " + (err.message || 'Permission denied'));
+        let errorMsg = err.message || 'Permission denied';
+        if (errorMsg.toLowerCase().includes("permission denied")) {
+           errorMsg += ". If using an Android app shell, ensure RECORD_AUDIO permission is requested and WebChromeClient.onPermissionRequest is implemented.";
+        }
+        toast.error("Could not access microphone: " + errorMsg);
       }
     }
   };
