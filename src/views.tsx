@@ -428,12 +428,16 @@ Psalm 14
 
 let cachedBibleData: any[] | null = null;
 let fetchBiblePromise: Promise<any[]> | null = null;
+let cachedNdBibleData: any[] | null = null;
+let fetchNdBiblePromise: Promise<any[]> | null = null;
+let cachedSnBibleData: any[] | null = null;
+let fetchSnBiblePromise: Promise<any[]> | null = null;
 
 function loadBibleData() {
   if (cachedBibleData) return Promise.resolve(cachedBibleData);
   if (fetchBiblePromise) return fetchBiblePromise;
   
-  fetchBiblePromise = fetch('./kjv.json?v=3')
+  fetchBiblePromise = fetch(`${import.meta.env.BASE_URL}kjv.json?v=3`)
     .then(res => res.json())
     .then(data => {
       cachedBibleData = data;
@@ -442,26 +446,55 @@ function loadBibleData() {
   return fetchBiblePromise;
 }
 
+function loadNdBibleData() {
+  if (cachedNdBibleData) return Promise.resolve(cachedNdBibleData);
+  if (fetchNdBiblePromise) return fetchNdBiblePromise;
+  
+  fetchNdBiblePromise = fetch(`${import.meta.env.BASE_URL}ndebele_bible.json?v=1`)
+    .then(res => res.json())
+    .then(data => {
+      cachedNdBibleData = data;
+      return data;
+    });
+  return fetchNdBiblePromise;
+}
+
+function loadSnBibleData() {
+  if (cachedSnBibleData) return Promise.resolve(cachedSnBibleData);
+  if (fetchSnBiblePromise) return fetchSnBiblePromise;
+  
+  fetchSnBiblePromise = fetch(`${import.meta.env.BASE_URL}shona_bible.json?v=1`)
+    .then(res => res.json())
+    .then(data => {
+      cachedSnBibleData = data;
+      return data;
+    });
+  return fetchSnBiblePromise;
+}
+
 // Eagerly prefetch bible data in the background after a short delay to not block initial render
 setTimeout(() => {
   loadBibleData().catch(console.error);
+  loadNdBibleData().catch(console.error);
+  loadSnBibleData().catch(console.error);
 }, 2000);
 
 function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const [kjvBible, setKjvBible] = useState<any[] | null>(cachedBibleData);
+  const [language, setLanguage] = useState<'en' | 'nd' | 'sn'>('en');
+  const [bibleData, setBibleData] = useState<any[] | null>(cachedBibleData);
   const [isLoading, setIsLoading] = useState(!cachedBibleData);
   const [error, setError] = useState(false);
   const [selectedBookIndex, setSelectedBookIndex] = useState(0);
   const [selectedChapterIndex, setSelectedChapterIndex] = useState(0);
 
   useEffect(() => {
-    // Start prefetching if not opened yet, but with low priority, or just when opened?
-    // We already fetch when opened, but let's just make it fetch using the loadBibleData function.
-    if (isOpen && !kjvBible) {
+    if (isOpen) {
       setIsLoading(true);
-      loadBibleData()
+      setError(false);
+      const loader = language === 'en' ? loadBibleData() : (language === 'nd' ? loadNdBibleData() : loadSnBibleData());
+      loader
         .then(data => {
-          setKjvBible(data);
+          setBibleData(data);
           setIsLoading(false);
         })
         .catch(err => {
@@ -470,7 +503,7 @@ function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () 
           setIsLoading(false);
         });
     }
-  }, [isOpen, kjvBible]);
+  }, [isOpen, language]);
 
 
   if (!isOpen) return null;
@@ -487,7 +520,7 @@ function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     );
   }
 
-  if (error || !kjvBible || !Array.isArray(kjvBible)) {
+  if (error || !bibleData || !Array.isArray(bibleData)) {
     return createPortal(
        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
          <div className="bg-white p-6 rounded-3xl font-bold text-gray-900 flex flex-col items-center shadow-2xl">
@@ -499,7 +532,7 @@ function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () 
     );
   }
 
-  const selectedBook = kjvBible[selectedBookIndex] || kjvBible[0];
+  const selectedBook = bibleData[selectedBookIndex] || bibleData[0];
   
   if (!selectedBook || !selectedBook.chapters) {
     return createPortal(
@@ -530,6 +563,29 @@ function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () 
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        <div className="p-3 bg-gray-50 border-b border-gray-100 shrink-0">
+           <div className="flex bg-gray-200/60 p-1 rounded-xl w-full">
+              <button 
+                onClick={() => setLanguage('en')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${language === 'en' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                English
+              </button>
+              <button 
+                onClick={() => setLanguage('nd')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${language === 'nd' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Ndebele
+              </button>
+              <button 
+                onClick={() => setLanguage('sn')}
+                className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${language === 'sn' ? 'bg-white text-emerald-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Shona
+              </button>
+           </div>
+        </div>
         
         <div className="flex bg-gray-50 border-b border-gray-100 shrink-0">
            <div className="flex-1 border-r border-gray-200">
@@ -541,7 +597,7 @@ function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () 
                   setSelectedChapterIndex(0);
                 }}
               >
-                {kjvBible.map((b, i) => (
+                {bibleData.map((b, i) => (
                    <option key={i} value={i}>{b.name}</option>
                 ))}
               </select>
@@ -579,11 +635,14 @@ function OfflineBibleReader({ isOpen, onClose }: { isOpen: boolean; onClose: () 
 let cachedHymnsData: any[] | null = null;
 let fetchHymnsPromise: Promise<any[]> | null = null;
 
+let cachedShonaHymnsData: any[] | null = null;
+let fetchShonaHymnsPromise: Promise<any[]> | null = null;
+
 function loadHymnsData() {
   if (cachedHymnsData) return Promise.resolve(cachedHymnsData);
   if (fetchHymnsPromise) return fetchHymnsPromise;
   
-  fetchHymnsPromise = fetch('./hymns.json?v=2')
+  fetchHymnsPromise = fetch(`${import.meta.env.BASE_URL}hymns.json?v=2`)
     .then(res => res.json())
     .then(data => {
       cachedHymnsData = data;
@@ -592,11 +651,26 @@ function loadHymnsData() {
   return fetchHymnsPromise;
 }
 
+function loadShonaHymnsData() {
+  if (cachedShonaHymnsData) return Promise.resolve(cachedShonaHymnsData);
+  if (fetchShonaHymnsPromise) return fetchShonaHymnsPromise;
+  
+  fetchShonaHymnsPromise = fetch(`${import.meta.env.BASE_URL}shona_hymns.json`)
+    .then(res => res.json())
+    .then(data => {
+      cachedShonaHymnsData = data;
+      return data;
+    });
+  return fetchShonaHymnsPromise;
+}
+
 setTimeout(() => {
   loadHymnsData().catch(console.error);
+  loadShonaHymnsData().catch(console.error);
 }, 3000);
 
 function DigitalHymnal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const [language, setLanguage] = useState<'nd' | 'sn'>('nd');
   const [hymns, setHymns] = useState<any[] | null>(cachedHymnsData);
   const [isLoading, setIsLoading] = useState(!cachedHymnsData);
   const [error, setError] = useState(false);
@@ -604,9 +678,11 @@ function DigitalHymnal({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
   const [selectedHymn, setSelectedHymn] = useState<any | null>(null);
 
   useEffect(() => {
-    if (isOpen && !hymns) {
+    if (isOpen) {
       setIsLoading(true);
-      loadHymnsData()
+      setError(false);
+      const loader = language === 'nd' ? loadHymnsData() : loadShonaHymnsData();
+      loader
         .then(data => {
           setHymns(data);
           setIsLoading(false);
@@ -617,7 +693,7 @@ function DigitalHymnal({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
           setIsLoading(false);
         });
     }
-  }, [isOpen, hymns]);
+  }, [isOpen, language]);
 
   if (!isOpen) return null;
 
@@ -645,10 +721,11 @@ function DigitalHymnal({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
     );
   }
 
-  const filteredHymns = hymns.filter(h => 
-    h.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    h.id.toString().includes(searchQuery)
-  );
+  const filteredHymns = hymns.filter(h => {
+    const id = h.id || h.number;
+    return h.title.toLowerCase().includes(searchQuery.toLowerCase()) || 
+           (id && id.toString().includes(searchQuery));
+  });
 
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
@@ -668,7 +745,21 @@ function DigitalHymnal({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
 
         {!selectedHymn ? (
           <>
-            <div className="p-3 border-b border-gray-100 bg-gray-50 shrink-0">
+            <div className="p-3 border-b border-gray-100 bg-gray-50 shrink-0 flex flex-col gap-3">
+               <div className="flex bg-gray-200/60 p-1 rounded-xl w-full">
+                  <button 
+                    onClick={() => setLanguage('nd')}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${language === 'nd' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Ndebele/Zulu
+                  </button>
+                  <button 
+                    onClick={() => setLanguage('sn')}
+                    className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${language === 'sn' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                  >
+                    Shona
+                  </button>
+               </div>
                <div className="relative">
                  <Search className="w-5 h-5 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                  <input 
@@ -687,12 +778,12 @@ function DigitalHymnal({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
                   <div className="flex flex-col gap-1">
                     {filteredHymns.map(h => (
                        <button
-                         key={h.id}
+                         key={h.id || h.number}
                          onClick={() => setSelectedHymn(h)}
                          className="flex items-center gap-4 p-3 rounded-xl hover:bg-blue-50 active:scale-[0.98] transition-all text-left"
                        >
                           <div className="w-10 h-10 shrink-0 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center font-extrabold text-sm">
-                             {h.id}
+                             {h.id || h.number}
                           </div>
                           <div className="font-bold text-gray-900 text-sm leading-tight">
                              {h.title}
@@ -718,7 +809,7 @@ function DigitalHymnal({ isOpen, onClose }: { isOpen: boolean; onClose: () => vo
             <div className="flex-1 overflow-y-auto p-6" style={{ scrollBehavior: 'smooth' }}>
                <div className="max-w-prose mx-auto">
                  <h3 className="font-extrabold text-2xl text-gray-900 text-center tracking-tight mb-2">
-                   {selectedHymn.id}. {selectedHymn.title}
+                   {selectedHymn.id || selectedHymn.number}. {selectedHymn.title}
                  </h3>
                  <div className="w-12 h-1 bg-blue-500 mx-auto rounded-full mb-8 opacity-20"></div>
                  <div className="whitespace-pre-wrap font-medium text-gray-800 text-[17px] leading-relaxed text-center font-serif">
