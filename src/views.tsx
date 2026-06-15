@@ -865,23 +865,33 @@ export function HomeView() {
         <div className="flex items-center justify-between mb-3 px-1">
           <h3 className="font-bold text-lg text-gray-900 leading-none">Announcements</h3>
         </div>
-        <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory pt-1 -mx-5 px-5 [&::-webkit-scrollbar]:hidden">
-          {announcements.map((announcement) => (
-            <div key={announcement.id} className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex flex-col gap-3 shadow-sm min-w-[260px] max-w-[300px] shrink-0 snap-center relative">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center shrink-0">
-                  <Megaphone className="w-5 h-5" />
+        
+        {announcements.length === 0 ? (
+          <div className="bg-gray-50 border border-gray-100 rounded-2xl p-6 text-center shadow-sm mx-1">
+            <h4 className="text-gray-900 font-bold mb-1">No Announcements</h4>
+            <p className="text-sm text-gray-500 font-medium">
+              {!navigator.onLine ? "Connect to the internet to load the latest announcements." : "Check back later for updates from the church."}
+            </p>
+          </div>
+        ) : (
+          <div className="flex overflow-x-auto gap-4 pb-4 snap-x snap-mandatory pt-1 -mx-5 px-5 [&::-webkit-scrollbar]:hidden">
+            {announcements.map((announcement) => (
+              <div key={announcement.id} className="bg-indigo-50 border border-indigo-100 rounded-2xl p-4 flex flex-col gap-3 shadow-sm min-w-[260px] max-w-[300px] shrink-0 snap-center relative">
+                <div className="flex items-start gap-3">
+                  <div className="w-10 h-10 bg-indigo-100 text-indigo-700 rounded-full flex items-center justify-center shrink-0">
+                    <Megaphone className="w-5 h-5" />
+                  </div>
+                  <div className="flex flex-col mt-0.5 w-full">
+                    <h4 className="font-bold text-gray-900 text-[14px] leading-tight pr-2">{announcement.title}</h4>
+                    {announcement.category && <span className="bg-indigo-200 text-indigo-800 text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full mt-1.5 self-start">{announcement.category}</span>}
+                  </div>
                 </div>
-                <div className="flex flex-col mt-0.5 w-full">
-                  <h4 className="font-bold text-gray-900 text-[14px] leading-tight pr-2">{announcement.title}</h4>
-                  {announcement.category && <span className="bg-indigo-200 text-indigo-800 text-[9px] uppercase tracking-wider font-extrabold px-2 py-0.5 rounded-full mt-1.5 self-start">{announcement.category}</span>}
-                </div>
+                <p className="text-gray-700 text-xs leading-relaxed font-medium mt-1">{announcement.message}</p>
+                <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide mt-auto pt-2">{announcement.date}</div>
               </div>
-              <p className="text-gray-700 text-xs leading-relaxed font-medium mt-1">{announcement.message}</p>
-              <div className="text-[10px] font-bold text-indigo-500 uppercase tracking-wide mt-auto pt-2">{announcement.date}</div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       <TestimoniesSection />
@@ -1033,39 +1043,52 @@ export function SermonsView() {
       )}
       
       <h2 className="font-extrabold text-3xl text-gray-900 mb-5 px-1 tracking-tight">Sermons</h2>
-      <div className="flex flex-col gap-3.5">
-        {sermons.map((sermon: any) => (
-          <div key={sermon.id} onClick={() => handlePlay(sermon)} className={`p-4 rounded-3xl border shadow-sm flex gap-4 items-center active:scale-95 transition-all cursor-pointer hover:shadow-md ${activeSermon?.id === sermon.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
-            <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${activeSermon?.id === sermon.id ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800'}`}>
-              {activeSermon?.id === sermon.id ? (
-                 <div className="flex items-center justify-center gap-0.5">
-                    <div className="w-1 h-3 bg-white animate-[bounce_1s_infinite_0ms] rounded-full"></div>
-                    <div className="w-1 h-4 bg-white animate-[bounce_1s_infinite_200ms] rounded-full mx-0.5"></div>
-                    <div className="w-1 h-3 bg-white animate-[bounce_1s_infinite_400ms] rounded-full"></div>
-                 </div>
-              ) : (
-                 <PlayCircle className={`w-8 h-8 fill-blue-100`} />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h3 className={`font-bold mb-1 leading-tight text-[15px] truncate transition-colors ${activeSermon?.id === sermon.id ? 'text-blue-900' : 'text-gray-900'}`}>{sermon.title}</h3>
-              <p className={`text-sm font-medium mb-1.5 truncate transition-colors ${activeSermon?.id === sermon.id ? 'text-blue-700' : 'text-blue-600'}`}>{sermon.speaker}</p>
-              {sermon.scripture && (
-                <p className="text-xs text-gray-500 font-medium mb-1.5 line-clamp-1"><BookOpen className="w-3 h-3 inline mr-1 opacity-70" /> {sermon.scripture}</p>
-              )}
-              {sermon.summary && activeSermon?.id === sermon.id && (
-                <div className="mb-2 mt-2 px-3 py-2 bg-blue-50/50 rounded-xl border border-blue-100">
-                  <p className="text-xs text-gray-600 leading-relaxed italic whitespace-pre-wrap">{sermon.summary}</p>
+      
+      {sermons.length === 0 ? (
+        <div className="bg-gray-50 border border-gray-100 rounded-3xl p-8 text-center shadow-sm">
+          <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+             <PlayCircle className="w-8 h-8" />
+          </div>
+          <h4 className="text-xl text-gray-900 font-bold mb-2">No Sermons Available</h4>
+          <p className="text-[15px] text-gray-500 font-medium">
+            {!navigator.onLine ? "Connect to the internet to load sermons from the church." : "Check back later for new sermon uploads."}
+          </p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3.5">
+          {sermons.map((sermon: any) => (
+            <div key={sermon.id} onClick={() => handlePlay(sermon)} className={`p-4 rounded-3xl border shadow-sm flex gap-4 items-center active:scale-95 transition-all cursor-pointer hover:shadow-md ${activeSermon?.id === sermon.id ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-100'}`}>
+              <div className={`w-14 h-14 rounded-full flex items-center justify-center flex-shrink-0 transition-colors ${activeSermon?.id === sermon.id ? 'bg-blue-600 text-white' : 'bg-blue-50 text-blue-800'}`}>
+                {activeSermon?.id === sermon.id ? (
+                   <div className="flex items-center justify-center gap-0.5">
+                      <div className="w-1 h-3 bg-white animate-[bounce_1s_infinite_0ms] rounded-full"></div>
+                      <div className="w-1 h-4 bg-white animate-[bounce_1s_infinite_200ms] rounded-full mx-0.5"></div>
+                      <div className="w-1 h-3 bg-white animate-[bounce_1s_infinite_400ms] rounded-full"></div>
+                   </div>
+                ) : (
+                   <PlayCircle className={`w-8 h-8 fill-blue-100`} />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className={`font-bold mb-1 leading-tight text-[15px] truncate transition-colors ${activeSermon?.id === sermon.id ? 'text-blue-900' : 'text-gray-900'}`}>{sermon.title}</h3>
+                <p className={`text-sm font-medium mb-1.5 truncate transition-colors ${activeSermon?.id === sermon.id ? 'text-blue-700' : 'text-blue-600'}`}>{sermon.speaker}</p>
+                {sermon.scripture && (
+                  <p className="text-xs text-gray-500 font-medium mb-1.5 line-clamp-1"><BookOpen className="w-3 h-3 inline mr-1 opacity-70" /> {sermon.scripture}</p>
+                )}
+                {sermon.summary && activeSermon?.id === sermon.id && (
+                  <div className="mb-2 mt-2 px-3 py-2 bg-blue-50/50 rounded-xl border border-blue-100">
+                    <p className="text-xs text-gray-600 leading-relaxed italic whitespace-pre-wrap">{sermon.summary}</p>
+                  </div>
+                )}
+                <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">
+                  <span>{sermon.date}</span>
+                  <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {sermon.duration}</span>
                 </div>
-              )}
-              <div className="flex flex-wrap items-center gap-3 text-[11px] font-bold text-gray-400 uppercase tracking-wide">
-                <span>{sermon.date}</span>
-                <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> {sermon.duration}</span>
               </div>
             </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
