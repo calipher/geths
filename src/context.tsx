@@ -10,6 +10,7 @@ import {
   cellGroups as initialCellGroups,
   appSettings as initialAppSettings
 } from './data';
+import { Toaster, toast } from 'sonner';
 import { collection, onSnapshot, addDoc, deleteDoc, doc, setDoc, updateDoc, getDocs, query, orderBy } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from './firebase';
 
@@ -60,10 +61,20 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let initialSermonsLoad = true;
     const unsubSermons = onSnapshot(collection(db, 'sermons'), (snapshot) => {
       const { parsed, filteredInitial } = processSnapshot(snapshot, initialSermons);
       parsed.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
       setData(prev => ({ ...prev, sermons: parsed.length > 0 ? [...parsed, ...filteredInitial] : filteredInitial }));
+      if (!initialSermonsLoad) {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added' && !change.doc.metadata.hasPendingWrites) {
+             const data = change.doc.data();
+             toast('New Sermon Available', { description: data.title || '' });
+          }
+        });
+      }
+      initialSermonsLoad = false;
     }, (error) => handleFirestoreError(error, OperationType.GET, 'sermons'));
 
     const unsubEvents = onSnapshot(collection(db, 'upcomingEvents'), (snapshot) => {
@@ -78,6 +89,7 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       setData(prev => ({ ...prev, timetable: parsed.length > 0 ? [...parsed, ...filteredInitial] : filteredInitial }));
     }, (error) => handleFirestoreError(error, OperationType.GET, 'timetable'));
 
+    let initialAnnouncementsLoad = true;
     const unsubAnnouncements = onSnapshot(collection(db, 'announcements'), (snapshot) => {
       const now = Date.now();
       const NINETY_DAYS = 90 * 24 * 60 * 60 * 1000;
@@ -92,6 +104,15 @@ export function AppDataProvider({ children }: { children: React.ReactNode }) {
       });
       validAnnouncements.sort((a: any, b: any) => (b.createdAt || 0) - (a.createdAt || 0));
       setData(prev => ({ ...prev, announcements: validAnnouncements.length > 0 ? [...validAnnouncements, ...filteredInitial] : filteredInitial }));
+      if (!initialAnnouncementsLoad) {
+        snapshot.docChanges().forEach((change) => {
+          if (change.type === 'added' && !change.doc.metadata.hasPendingWrites) {
+             const data = change.doc.data();
+             toast('New Announcement!', { description: data.title || '', duration: 8000, position: 'top-center' });
+          }
+        });
+      }
+      initialAnnouncementsLoad = false;
     }, (error) => handleFirestoreError(error, OperationType.GET, 'announcements'));
 
     const unsubTestimonies = onSnapshot(collection(db, 'testimonies'), (snapshot) => {

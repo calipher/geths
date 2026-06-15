@@ -50,7 +50,63 @@ function AppUpdateBanner() {
 }
 
 import { Toaster, toast } from 'sonner';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, Download as DownloadIcon } from 'lucide-react';
+
+function InstallPWABanner() {
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [isDismissed, setIsDismissed] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: any) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handler);
+    };
+  }, []);
+
+  if (!deferredPrompt || isDismissed) return null;
+
+  const handleInstallClick = async () => {
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('User accepted the install prompt');
+    } else {
+      console.log('User dismissed the install prompt');
+    }
+    setDeferredPrompt(null);
+  };
+
+  return (
+    <div className="bg-indigo-600 text-white px-4 py-3 xl:py-2.5 flex items-center justify-between shadow-md relative z-40">
+      <div className="flex flex-col">
+        <span className="font-bold text-sm">Install Church App</span>
+        <span className="text-xs text-indigo-100">Get quick access from your home screen</span>
+      </div>
+      <div className="flex items-center gap-2">
+        <button
+          onClick={handleInstallClick}
+          className="bg-white text-indigo-700 px-3 py-1.5 rounded-full text-xs font-bold shadow-sm hover:bg-gray-50 active:scale-95 transition-all flex items-center gap-1"
+        >
+          <DownloadIcon className="w-3.5 h-3.5" /> Install
+        </button>
+        <button
+          onClick={() => setIsDismissed(true)}
+          className="p-1 hover:bg-white/10 rounded-full transition-colors"
+        >
+          <X className="w-4 h-4 text-white/70" />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function NetworkStatusIndicator() {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
@@ -86,8 +142,16 @@ export default function App() {
   }, []);
 
   const handleRefresh = async () => {
-    // Simulate a network request delay since Firebase handles real-time updates automatically
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    if ('serviceWorker' in navigator) {
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      for (let registration of registrations) {
+        await registration.update();
+      }
+    }
+    // Briefly wait to let SW update if needed, then reload
+    setTimeout(() => {
+      window.location.reload();
+    }, 300);
   };
 
   return (
@@ -103,6 +167,7 @@ export default function App() {
           <div className="w-full max-w-md bg-gray-50 h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden ring-1 ring-gray-900 sm:h-[850px] sm:max-h-[calc(100vh-4rem)] sm:rounded-[3rem] sm:ring-8 sm:ring-gray-800">
             <Header setActiveTab={setActiveTab} />
             <AppUpdateBanner />
+            <InstallPWABanner />
             <NetworkStatusIndicator />
 
             <PullToRefresh onRefresh={handleRefresh}>

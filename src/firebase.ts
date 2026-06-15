@@ -49,10 +49,18 @@ export const setupFCM = async (userId: string) => {
   }
 };
 
+import { toast } from 'sonner';
+
 if (messaging) {
   onMessage(messaging, (payload) => {
     console.log('Message received. ', payload);
-    // You could show a toast or local notification here.
+    const title = payload.notification?.title || 'New Update';
+    const body = payload.notification?.body || '';
+    toast(title, {
+      description: body,
+      duration: 8000,
+      position: 'top-center'
+    });
   });
 }
 
