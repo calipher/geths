@@ -437,10 +437,11 @@ function loadBibleData() {
   if (cachedBibleData) return Promise.resolve(cachedBibleData);
   if (fetchBiblePromise) return fetchBiblePromise;
   
-  fetchBiblePromise = import('../public/kjv.json')
-    .then((mod: any) => {
-      cachedBibleData = mod.default;
-      return mod.default;
+  fetchBiblePromise = fetch(`${import.meta.env.BASE_URL}kjv.json`)
+    .then(res => res.json())
+    .then(data => {
+      cachedBibleData = data;
+      return data;
     });
   return fetchBiblePromise;
 }
@@ -449,10 +450,11 @@ function loadNdBibleData() {
   if (cachedNdBibleData) return Promise.resolve(cachedNdBibleData);
   if (fetchNdBiblePromise) return fetchNdBiblePromise;
   
-  fetchNdBiblePromise = import('../public/ndebele_bible.json')
-    .then((mod: any) => {
-      cachedNdBibleData = mod.default;
-      return mod.default;
+  fetchNdBiblePromise = fetch(`${import.meta.env.BASE_URL}ndebele_bible.json`)
+    .then(res => res.json())
+    .then(data => {
+      cachedNdBibleData = data;
+      return data;
     });
   return fetchNdBiblePromise;
 }
@@ -461,10 +463,11 @@ function loadSnBibleData() {
   if (cachedSnBibleData) return Promise.resolve(cachedSnBibleData);
   if (fetchSnBiblePromise) return fetchSnBiblePromise;
   
-  fetchSnBiblePromise = import('../public/shona_bible.json')
-    .then((mod: any) => {
-      cachedSnBibleData = mod.default;
-      return mod.default;
+  fetchSnBiblePromise = fetch(`${import.meta.env.BASE_URL}shona_bible.json`)
+    .then(res => res.json())
+    .then(data => {
+      cachedSnBibleData = data;
+      return data;
     });
   return fetchSnBiblePromise;
 }
@@ -639,10 +642,11 @@ function loadHymnsData() {
   if (cachedHymnsData) return Promise.resolve(cachedHymnsData);
   if (fetchHymnsPromise) return fetchHymnsPromise;
   
-  fetchHymnsPromise = import('../public/hymns.json')
-    .then((mod: any) => {
-      cachedHymnsData = mod.default;
-      return mod.default;
+  fetchHymnsPromise = fetch(`${import.meta.env.BASE_URL}hymns.json`)
+    .then(res => res.json())
+    .then(data => {
+      cachedHymnsData = data;
+      return data;
     });
   return fetchHymnsPromise;
 }
@@ -651,10 +655,11 @@ function loadShonaHymnsData() {
   if (cachedShonaHymnsData) return Promise.resolve(cachedShonaHymnsData);
   if (fetchShonaHymnsPromise) return fetchShonaHymnsPromise;
   
-  fetchShonaHymnsPromise = import('../public/shona_hymns.json')
-    .then((mod: any) => {
-      cachedShonaHymnsData = mod.default;
-      return mod.default;
+  fetchShonaHymnsPromise = fetch(`${import.meta.env.BASE_URL}shona_hymns.json`)
+    .then(res => res.json())
+    .then(data => {
+      cachedShonaHymnsData = data;
+      return data;
     });
   return fetchShonaHymnsPromise;
 }

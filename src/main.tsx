@@ -2,6 +2,18 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { registerSW } from 'virtual:pwa-register';
+
+const updateSW = registerSW({
+  onNeedRefresh() {
+    // We can prompt the user here or just let it update
+    console.log("New content available, refreshing...");
+    updateSW(true);
+  },
+  onOfflineReady() {
+    console.log("App ready to work offline");
+  },
+});
 
 window.addEventListener('error', (event) => {
   const msg = event.message || event.error?.message || '';

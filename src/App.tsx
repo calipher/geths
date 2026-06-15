@@ -50,6 +50,33 @@ function AppUpdateBanner() {
 }
 
 import { Toaster, toast } from 'sonner';
+import { WifiOff } from 'lucide-react';
+
+function NetworkStatusIndicator() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  if (isOnline) return null;
+
+  return (
+    <div className="bg-amber-500 text-white px-4 py-2 flex items-center justify-center gap-2 text-xs font-medium shadow-sm relative z-40">
+      <WifiOff className="w-4 h-4" />
+      <span>You are currently offline. Viewing cached data.</span>
+    </div>
+  );
+}
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<TabContext>('home');
@@ -76,6 +103,7 @@ export default function App() {
           <div className="w-full max-w-md bg-gray-50 h-[100dvh] flex flex-col relative shadow-2xl overflow-hidden ring-1 ring-gray-900 sm:h-[850px] sm:max-h-[calc(100vh-4rem)] sm:rounded-[3rem] sm:ring-8 sm:ring-gray-800">
             <Header setActiveTab={setActiveTab} />
             <AppUpdateBanner />
+            <NetworkStatusIndicator />
 
             <PullToRefresh onRefresh={handleRefresh}>
               <div className="pb-6">
